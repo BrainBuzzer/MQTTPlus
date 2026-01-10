@@ -8,17 +8,13 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var natsManager = NatsManager.shared
+    @StateObject private var tabManager = TabManager()
     
     var body: some View {
         NavigationSplitView {
-            ServerListView(natsManager: natsManager)
+            ServerListView(tabManager: tabManager)
         } detail: {
-            if natsManager.connectionState.isConnected {
-                ActiveSessionView(natsManager: natsManager)
-            } else {
-                WelcomeView(connectionState: natsManager.connectionState)
-            }
+            SessionTabView(tabManager: tabManager)
         }
         .frame(minWidth: 900, minHeight: 600)
     }
@@ -33,7 +29,7 @@ struct WelcomeView: View {
                 .font(.system(size: 80))
                 .foregroundStyle(.blue.gradient)
             
-            Text("NATS PubSub Viewer")
+            Text("PubSub Viewer")
                 .font(.largeTitle)
                 .fontWeight(.bold)
             

@@ -11,6 +11,35 @@ import Combine
 
 // MARK: - Models
 
+enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
+    case nats
+    case redis
+
+    init?(urlString: String) {
+        if urlString.hasPrefix("nats://") || urlString.hasPrefix("tls://") {
+            self = .nats
+        } else if urlString.hasPrefix("redis://") || urlString.hasPrefix("rediss://") {
+            self = .redis
+        } else {
+            return nil
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .nats: return "NATS"
+        case .redis: return "Redis"
+        }
+    }
+
+    var firehosePattern: String {
+        switch self {
+        case .nats: return ">"
+        case .redis: return "*"
+        }
+    }
+}
+
 /// Represents a single received message (our app model)
 struct ReceivedMessage: Identifiable, Hashable {
     let id = UUID()
@@ -72,11 +101,12 @@ enum NatsConnectionState: Equatable {
 @MainActor
 class NatsManager: ObservableObject {
     static let shared = NatsManager()
-    
+
     @Published var connectionState: NatsConnectionState = .disconnected
     @Published var subscribedSubjects: [String] = []
     @Published var messages: [ReceivedMessage] = []
     @Published var currentServerName: String?
+    @Published var currentServerID: UUID?
     @Published var logs: [LogEntry] = []
     
     // JetStream support
@@ -86,6 +116,8 @@ class NatsManager: ObservableObject {
     // Streams and Consumers (JetStream)
     @Published var streams: [MQStreamInfo] = []
     @Published var consumers: [String: [MQConsumerInfo]] = [:]
+
+    @Published var currentProvider: MQProviderKind?
     
     struct LogEntry: Identifiable, Hashable {
         let id = UUID()
@@ -97,68 +129,88 @@ class NatsManager: ObservableObject {
             case info, warning, error
         }
     }
-    
-    // C FFI Client
-    private var client: NatsCClient?
+
+    // Active MQ client (provider-dependent)
+    private var client: (any MessageQueueClient)?
     private var subscriptionTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     
-    private init() {}
+    init() {}
     
     // MARK: - Connection Management
     
-    func connect(to urlString: String, serverName: String, mode: NatsMode = .core) async {
+    func connect(to urlString: String, serverName: String, serverID: UUID? = nil, mode: NatsMode = .core) async {
         guard connectionState != .connecting else { return }
-        
+
         log("Initiating connection to \(serverName) (\(urlString))...", level: .info)
         connectionState = .connecting
         currentServerName = serverName
-        self.mode = mode
-        
-        // Log connection mode
-        log("Connection mode: \(mode.description)", level: .info)
-        
-        // Validate URL format
-        guard urlString.hasPrefix("nats://") || urlString.hasPrefix("tls://") else {
-            let errorMsg = "Invalid NATS URL format"
+        currentServerID = serverID
+
+        guard let provider = MQProviderKind(urlString: urlString) else {
+            let errorMsg = "Unsupported URL scheme"
             connectionState = .error(errorMsg)
             log(errorMsg, level: .error)
             return
         }
-        
+
+        currentProvider = provider
+        self.mode = (provider == .nats) ? mode : .core
+
+        // Log connection mode
+        log("Provider: \(provider.displayName)", level: .info)
+        if provider == .nats {
+            log("Connection mode: \(self.mode.description)", level: .info)
+        }
+
         do {
+            let url = URL(string: urlString)
+            let username = (url?.user?.isEmpty == false) ? url?.user : nil
+            let password = url?.password
+            let tlsEnabled = (url?.scheme?.lowercased() == "tls") || (url?.scheme?.lowercased() == "rediss")
+
             // Create configuration
             let config = MQConnectionConfig(
                 url: urlString,
-                name: serverName
+                name: serverName,
+                username: username,
+                password: password,
+                tlsEnabled: tlsEnabled
             )
-            
-            // Create C FFI client
-            let natsClient = NatsCClient(config: config)
-            self.client = natsClient
-            
+
+            // Create provider client
+            let mqClient: any MessageQueueClient = {
+                switch provider {
+                case .nats:
+                    return NatsCClient(config: config)
+                case .redis:
+                    return RedisClient(config: config)
+                }
+            }()
+            self.client = mqClient
+
             // Subscribe to state changes
-            natsClient.statePublisher
+            mqClient.statePublisher
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] state in
                     self?.connectionState = NatsConnectionState(from: state)
                 }
                 .store(in: &cancellables)
-            
+
             // Connect
-            try await natsClient.connect()
-            
+            try await mqClient.connect()
+
             connectionState = .connected
             log("Connected to \(urlString)", level: .info)
-            
+
             // Auto-subscribe to firehose
             subscribeToFirehose()
-            
-            // Initialize JetStream if in JetStream mode
-            if mode == .jetstream {
+
+            // Initialize JetStream if in JetStream mode (NATS only)
+            if provider == .nats, self.mode == .jetstream {
                 jetStreamManager = JetStreamManager()
                 log("JetStream mode initialized", level: .info)
-                
+
                 // Load streams
                 await refreshStreams()
             }
@@ -172,8 +224,9 @@ class NatsManager: ObservableObject {
     }
     
     func disconnect() {
+        let clientToDisconnect = client
         Task {
-            await client?.disconnect()
+            await clientToDisconnect?.disconnect()
         }
         handleDisconnect()
     }
@@ -185,6 +238,8 @@ class NatsManager: ObservableObject {
         subscribedSubjects.removeAll()
         connectionState = .disconnected
         currentServerName = nil
+        currentServerID = nil
+        currentProvider = nil
         streams.removeAll()
         consumers.removeAll()
         jetStreamManager = nil
@@ -197,14 +252,15 @@ class NatsManager: ObservableObject {
     
     private func subscribeToFirehose() {
         guard let client = client else { return }
-        
+        let pattern = currentProvider?.firehosePattern ?? ">"
+
         subscriptionTask = Task { [weak self] in
             do {
-                let stream = try await client.subscribe(to: ">")
-                
+                let stream = try await client.subscribe(to: pattern)
+
                 for await message in stream {
                     guard !Task.isCancelled else { break }
-                    
+
                     await MainActor.run {
                         self?.handleMessage(message)
                     }
@@ -215,9 +271,9 @@ class NatsManager: ObservableObject {
                 }
             }
         }
-        
-        log("Subscribed to Firehose (>)", level: .info)
-        print("[NatsManager] Subscribed to Firehose (>)")
+
+        log("Subscribed to Firehose (\(pattern))", level: .info)
+        print("[NatsManager] Subscribed to Firehose (\(pattern))")
     }
     
     func subscribe(to subject: String) {
@@ -261,8 +317,9 @@ class NatsManager: ObservableObject {
     // MARK: - JetStream Operations
     
     func refreshStreams() async {
-        guard let client = client, mode == .jetstream else { return }
-        
+        guard mode == .jetstream, currentProvider == .nats else { return }
+        guard let client = client as? any StreamingClient else { return }
+
         do {
             let streamList = try await client.listStreams()
             streams = streamList
@@ -273,10 +330,13 @@ class NatsManager: ObservableObject {
     }
     
     func createStream(_ config: MQStreamConfig) async throws -> MQStreamInfo {
-        guard let client = client, mode == .jetstream else {
+        guard mode == .jetstream, currentProvider == .nats else {
             throw MQError.notConnected
         }
-        
+        guard let client = client as? any StreamingClient else {
+            throw MQError.operationNotSupported("Streaming not supported")
+        }
+
         let stream = try await client.createStream(config)
         await refreshStreams()
         log("Created stream: \(stream.name)", level: .info)
@@ -284,18 +344,22 @@ class NatsManager: ObservableObject {
     }
     
     func deleteStream(_ name: String) async throws {
-        guard let client = client, mode == .jetstream else {
+        guard mode == .jetstream, currentProvider == .nats else {
             throw MQError.notConnected
         }
-        
+        guard let client = client as? any StreamingClient else {
+            throw MQError.operationNotSupported("Streaming not supported")
+        }
+
         try await client.deleteStream(name)
         await refreshStreams()
         log("Deleted stream: \(name)", level: .info)
     }
     
     func refreshConsumers(for stream: String) async {
-        guard let client = client, mode == .jetstream else { return }
-        
+        guard mode == .jetstream, currentProvider == .nats else { return }
+        guard let client = client as? any StreamingClient else { return }
+
         do {
             let consumerList = try await client.listConsumers(stream: stream)
             consumers[stream] = consumerList
@@ -306,10 +370,13 @@ class NatsManager: ObservableObject {
     }
     
     func createConsumer(stream: String, config: MQConsumerConfig) async throws -> MQConsumerInfo {
-        guard let client = client, mode == .jetstream else {
+        guard mode == .jetstream, currentProvider == .nats else {
             throw MQError.notConnected
         }
-        
+        guard let client = client as? any StreamingClient else {
+            throw MQError.operationNotSupported("Streaming not supported")
+        }
+
         let consumer = try await client.createConsumer(stream: stream, config: config)
         await refreshConsumers(for: stream)
         log("Created consumer: \(consumer.name)", level: .info)
@@ -317,20 +384,26 @@ class NatsManager: ObservableObject {
     }
     
     func deleteConsumer(stream: String, name: String) async throws {
-        guard let client = client, mode == .jetstream else {
+        guard mode == .jetstream, currentProvider == .nats else {
             throw MQError.notConnected
         }
-        
+        guard let client = client as? any StreamingClient else {
+            throw MQError.operationNotSupported("Streaming not supported")
+        }
+
         try await client.deleteConsumer(stream: stream, name: name)
         await refreshConsumers(for: stream)
         log("Deleted consumer: \(name)", level: .info)
     }
     
     func publishToJetStream(to subject: String, payload: String) async throws -> MQPublishAck {
-        guard let client = client, mode == .jetstream else {
+        guard mode == .jetstream, currentProvider == .nats else {
             throw MQError.notConnected
         }
-        
+        guard let client = client as? any StreamingClient else {
+            throw MQError.operationNotSupported("Streaming not supported")
+        }
+
         let message = MQMessage(subject: subject, payloadString: payload)
         let ack = try await client.publishPersistent(message, to: subject)
         log("JetStream published to \(subject), seq: \(ack.sequence)", level: .info)

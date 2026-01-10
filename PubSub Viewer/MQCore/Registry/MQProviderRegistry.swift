@@ -125,11 +125,11 @@ public func registerAllProviders() {
     let registry = MQProviderRegistry.shared
     
     // Register NATS provider
-    // registry.register(NatsProvider.self)
+    registry.register(NatsProvider.self)
+    registry.register(RedisProvider.self)
     
     // Future providers:
     // registry.register(KafkaProvider.self)
     // registry.register(RabbitMQProvider.self)
-    // registry.register(RedisProvider.self)
     // registry.register(MQTTProvider.self)
 }

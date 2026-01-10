@@ -11,7 +11,7 @@ import Foundation
 
 /// Connection mode selector for NATS
 enum NatsMode: String, Codable, CaseIterable {
-    case core = "Core NATS"
+    case core = "Pub/Sub"
     case jetstream = "JetStream"
     
     var description: String { rawValue }

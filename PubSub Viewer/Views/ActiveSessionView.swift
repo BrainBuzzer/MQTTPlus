@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 struct ActiveSessionView: View {
     @ObservedObject var natsManager: NatsManager
@@ -48,7 +49,7 @@ struct ActiveSessionView: View {
                     HStack {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                             .foregroundStyle(.secondary)
-                        TextField("Add Subject Filter (e.g. foo.*)", text: $newSubject)
+                        TextField(filterPlaceholder, text: $newSubject)
                             .textFieldStyle(.plain)
                             .onSubmit(subscribeToSubject)
                         
@@ -188,27 +189,126 @@ struct ActiveSessionView: View {
     private func messageMatches(subject: String, pattern: String) -> Bool {
         if pattern == ">" { return true }
         if pattern == subject { return true }
-        
+        if natsManager.currentProvider == .redis {
+            return redisGlobMatch(subject: subject, pattern: pattern)
+        } else {
+            return natsSubjectMatch(subject: subject, pattern: pattern)
+        }
+    }
+
+    private var filterPlaceholder: String {
+        switch natsManager.currentProvider {
+        case .redis:
+            return "Add Channel Filter (e.g. foo*)"
+        case .nats:
+            return "Add Subject Filter (e.g. foo.*)"
+        case nil:
+            return "Add Filter"
+        }
+    }
+
+    private func natsSubjectMatch(subject: String, pattern: String) -> Bool {
         let subjectTokens = subject.components(separatedBy: ".")
         let patternTokens = pattern.components(separatedBy: ".")
-        
+
         for (index, token) in patternTokens.enumerated() {
             if token == ">" {
                 // strict wildcard: matches everything following
                 return true
             }
-            
+
             if index >= subjectTokens.count {
                 return false
             }
-            
+
             if token != "*" && token != subjectTokens[index] {
                 return false
             }
         }
-        
+
         // If pattern ended without '>', ensure we consumed all subject tokens
         return patternTokens.count == subjectTokens.count
+    }
+
+    private func redisGlobMatch(subject: String, pattern: String) -> Bool {
+        let regex = redisGlobToRegex(pattern)
+        return subject.range(of: regex, options: [.regularExpression]) != nil
+    }
+
+    private func redisGlobToRegex(_ pattern: String) -> String {
+        var regex = "^"
+        regex.reserveCapacity(pattern.count * 2)
+
+        var isEscaped = false
+        var index = pattern.startIndex
+
+        while index < pattern.endIndex {
+            let ch = pattern[index]
+            index = pattern.index(after: index)
+
+            if isEscaped {
+                regex.append(NSRegularExpression.escapedPattern(for: String(ch)))
+                isEscaped = false
+                continue
+            }
+
+            if ch == "\\" {
+                isEscaped = true
+                continue
+            }
+
+            switch ch {
+            case "*":
+                regex.append(".*")
+            case "?":
+                regex.append(".")
+            case "[":
+                var cls = "["
+                var content = ""
+                var foundEnd = false
+
+                while index < pattern.endIndex {
+                    let c = pattern[index]
+                    index = pattern.index(after: index)
+                    if c == "]" {
+                        foundEnd = true
+                        break
+                    }
+                    content.append(c)
+                }
+
+                if foundEnd {
+                    if content.hasPrefix("!") {
+                        cls.append("^")
+                        content.removeFirst()
+                    }
+                    for c in content {
+                        if c == "\\" {
+                            cls.append("\\\\")
+                        } else if c == "]" {
+                            cls.append("\\]")
+                        } else {
+                            cls.append(c)
+                        }
+                    }
+                    cls.append("]")
+                    regex.append(cls)
+                } else {
+                    // Unmatched '[', treat literally.
+                    regex.append("\\[")
+                }
+
+            default:
+                regex.append(NSRegularExpression.escapedPattern(for: String(ch)))
+            }
+        }
+
+        if isEscaped {
+            regex.append("\\\\")
+        }
+
+        regex.append("$")
+        return regex
     }
     
     private func subscribeToSubject() {

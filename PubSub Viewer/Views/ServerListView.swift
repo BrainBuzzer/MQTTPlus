@@ -10,7 +10,7 @@ import CoreData
 
 struct ServerListView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var tabManager: TabManager
     
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \ServerConfig.createdAt, ascending: false)],
@@ -25,7 +25,7 @@ struct ServerListView: View {
         List(selection: $selectedServer) {
             Section("Servers") {
                 ForEach(servers) { server in
-                    ServerRowView(server: server, natsManager: natsManager)
+                    ServerRowView(server: server, tabManager: tabManager)
                         .tag(server)
                         .contextMenu {
                             Button("Delete", role: .destructive) {
@@ -45,7 +45,7 @@ struct ServerListView: View {
             }
         }
         .sheet(isPresented: $showingAddServer) {
-            AddServerSheet(isPresented: $showingAddServer)
+            AddServerView()
         }
         .navigationTitle("Servers")
     }
@@ -63,24 +63,25 @@ struct ServerListView: View {
 
 struct ServerRowView: View {
     let server: ServerConfig
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var tabManager: TabManager
     @State private var showingModeSelector = false
     @State private var selectedMode: NatsMode = .core
-    
-    var isConnected: Bool {
-        natsManager.connectionState.isConnected && natsManager.currentServerName == server.name
+
+    private var provider: MQProviderKind? {
+        MQProviderKind(urlString: server.urlString ?? "")
     }
     
-    var isConnecting: Bool {
-        if case .connecting = natsManager.connectionState {
-            return natsManager.currentServerName == server.name
-        }
-        return false
+    var session: Session? {
+        tabManager.session(for: server.id)
+    }
+    
+    var isConnected: Bool {
+        session != nil
     }
     
     var body: some View {
         HStack {
-            Image(systemName: "server.rack")
+            Image(systemName: providerIcon)
                 .foregroundColor(isConnected ? .green : .secondary)
             
             VStack(alignment: .leading, spacing: 2) {
@@ -93,12 +94,7 @@ struct ServerRowView: View {
             
             Spacer()
             
-            if isConnecting {
-                ProgressView()
-                    .controlSize(.small)
-                    .scaleEffect(0.5) // Make it smaller to fit nicely
-                    .frame(width: 8, height: 8)
-            } else if isConnected {
+            if isConnected {
                 Circle()
                     .fill(.green)
                     .frame(width: 8, height: 8)
@@ -113,81 +109,43 @@ struct ServerRowView: View {
             ModeSelectorView(
                 selectedMode: $selectedMode,
                 onConnect: { mode in
-                    Task {
-                        await natsManager.connect(
-                            to: server.urlString ?? "",
-                            serverName: server.name ?? "Unknown",
-                            mode: mode
-                        )
-                    }
+                    tabManager.openTab(for: server, mode: mode)
                     showingModeSelector = false
                 }
             )
         }
     }
+
+    private var providerIcon: String {
+        switch provider {
+        case .nats:
+            return "antenna.radiowaves.left.and.right"
+        case .redis:
+            return "cylinder.fill"
+        case nil:
+            return "server.rack"
+        }
+    }
     
     private func handleTap() {
-        guard !isConnecting else { return }
-        
         if isConnected {
-            natsManager.disconnect()
+            // If already connected, just switch to that tab
+            if let id = session?.id {
+                tabManager.selectTab(id: id)
+            }
         } else {
-            // Show mode selector instead of connecting directly
-            showingModeSelector = true
-        }
-    }
-}
-
-struct AddServerSheet: View {
-    @Environment(\.managedObjectContext) private var viewContext
-    @Binding var isPresented: Bool
-    
-    @State private var name = ""
-    @State private var urlString = "nats://localhost:4222"
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Add NATS Server")
-                .font(.headline)
-            
-            Form {
-                TextField("Server Name", text: $name)
-                TextField("URL", text: $urlString)
-            }
-            .formStyle(.grouped)
-            
-            HStack {
-                Button("Cancel") {
-                    isPresented = false
-                }
-                .keyboardShortcut(.escape)
-                
-                Spacer()
-                
-                Button("Add") {
-                    addServer()
-                }
-                .keyboardShortcut(.return)
-                .disabled(name.isEmpty || urlString.isEmpty)
+            switch provider {
+            case .nats:
+                // Show mode selector instead of connecting directly
+                showingModeSelector = true
+            default:
+                tabManager.openTab(for: server)
             }
         }
-        .padding()
-        .frame(width: 400, height: 200)
-    }
-    
-    private func addServer() {
-        let newServer = ServerConfig(context: viewContext)
-        newServer.id = UUID()
-        newServer.name = name
-        newServer.urlString = urlString
-        newServer.createdAt = Date()
-        
-        try? viewContext.save()
-        isPresented = false
     }
 }
 
 #Preview {
-    ServerListView(natsManager: NatsManager.shared)
+    ServerListView(tabManager: TabManager())
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
