@@ -16,6 +16,7 @@ struct ActiveSessionView: View {
     @State private var showingPublishSheet = false
     
     @State private var showingConsole = false
+    @State private var showingInspector = false
     
     var body: some View {
         // Show appropriate view based on connection mode
@@ -132,6 +133,12 @@ struct ActiveSessionView: View {
                             
                             Spacer()
                             
+                            Toggle(isOn: $showingInspector) {
+                                Label("Inspector", systemImage: "gauge.with.dots.needle.bottom.50percent")
+                            }
+                            .toggleStyle(.button)
+                            .help("Toggle Broker Inspector")
+                            
                             Toggle(isOn: $showingConsole) {
                                 Label("Console", systemImage: "terminal")
                             }
@@ -163,6 +170,13 @@ struct ActiveSessionView: View {
                     if showingConsole {
                         ConsoleView(connectionManager: connectionManager)
                             .frame(minHeight: 100, maxHeight: 300)
+                            .transition(.move(edge: .bottom))
+                    }
+                    
+                    // Bottom: Broker Inspector Panel
+                    if showingInspector {
+                        BrokerInspectorPanel(connectionManager: connectionManager)
+                            .frame(minHeight: 150, maxHeight: 350)
                             .transition(.move(edge: .bottom))
                     }
                 }
