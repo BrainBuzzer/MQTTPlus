@@ -6,78 +6,128 @@
 //
 
 import SwiftUI
-import CoreData
 
 struct ContentView: View {
-    @Environment(\.managedObjectContext) private var viewContext
-
-    @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
-
+    @StateObject private var natsManager = NatsManager.shared
+    
     var body: some View {
-        NavigationView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                    } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+        NavigationSplitView {
+            ServerListView(natsManager: natsManager)
+        } detail: {
+            if natsManager.connectionState.isConnected {
+                ActiveSessionView(natsManager: natsManager)
+            } else {
+                WelcomeView(connectionState: natsManager.connectionState)
             }
         }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
-        }
+        .frame(minWidth: 900, minHeight: 600)
     }
 }
 
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
+struct WelcomeView: View {
+    let connectionState: NatsConnectionState
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "antenna.radiowaves.left.and.right.circle.fill")
+                .font(.system(size: 80))
+                .foregroundStyle(.blue.gradient)
+            
+            Text("NATS PubSub Viewer")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            
+            Text("Select a server from the sidebar to connect")
+                .foregroundColor(.secondary)
+            
+            if case .connecting = connectionState {
+                ProgressView("Connecting...")
+                    .padding(.top)
+            } else if case .error(let message) = connectionState {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundColor(.red)
+                    .padding(.top)
+            }
+        }
+        .padding(40)
+    }
+}
+
+struct StatusBar: View {
+    @ObservedObject var natsManager: NatsManager
+    
+    var statusColor: Color {
+        switch natsManager.connectionState {
+        case .connected: return .green
+        case .connecting: return .orange
+        case .error: return .red
+        case .disconnected: return .gray
+        }
+    }
+    
+    var statusText: String {
+        switch natsManager.connectionState {
+        case .connected:
+            return "Connected to \(natsManager.currentServerName ?? "server")"
+        case .connecting:
+            return "Connecting..."
+        case .error(let msg):
+            return "Error: \(msg)"
+        case .disconnected:
+            return "Disconnected"
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 8, height: 8)
+            
+            Text(statusText)
+                .font(.caption)
+            
+            Spacer()
+            
+            if natsManager.connectionState.isConnected {
+                Text("\(natsManager.subscribedSubjects.count) subscriptions")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("•")
+                    .foregroundColor(.secondary)
+                
+                Text("\(natsManager.messages.count) messages")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Text("•")
+                    .foregroundColor(.secondary)
+                
+                // Mode badge
+                Text(natsManager.mode.description)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(natsManager.mode == .jetstream ? .white : .blue)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(natsManager.mode == .jetstream ? Color.purple : Color.blue.opacity(0.2))
+                    .cornerRadius(4)
+                
+                Button("Disconnect") {
+                    natsManager.disconnect()
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+}
 
 #Preview {
-    ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+    ContentView()
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
