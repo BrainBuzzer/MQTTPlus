@@ -197,6 +197,26 @@ extension NatsCClient: MessageQueueClient {
             // Set connection name
             _ = natsOptions_SetName(opts, config.name)
             
+            // Set callbacks
+            let contextPtr = Unmanaged.passUnretained(self).toOpaque()
+            natsOptions_SetDisconnectedCB(opts, { (_, closure) in
+                guard let closure else { return }
+                let client = Unmanaged<NatsCClient>.fromOpaque(closure).takeUnretainedValue()
+                client.updateState(.disconnected)
+            }, contextPtr)
+            
+            natsOptions_SetReconnectedCB(opts, { (_, closure) in
+                guard let closure else { return }
+                let client = Unmanaged<NatsCClient>.fromOpaque(closure).takeUnretainedValue()
+                client.updateState(.connected)
+            }, contextPtr)
+            
+            natsOptions_SetClosedCB(opts, { (_, closure) in
+                guard let closure else { return }
+                let client = Unmanaged<NatsCClient>.fromOpaque(closure).takeUnretainedValue()
+                client.updateState(.disconnected)
+            }, contextPtr)
+            
             lock.lock()
             self.options = opts
             lock.unlock()
@@ -684,7 +704,7 @@ extension NatsCClient: StreamingClient {
 
                 var jsOpts = jsOptions()
                 _ = jsOptions_Init(&jsOpts)
-                jsOpts.PullSubscribeAsync.FetchSize = 10
+                jsOpts.PullSubscribeAsync.FetchSize = 100
 
                 var errCode = jsErrCode(rawValue: 0)
                 var sub: OpaquePointer?

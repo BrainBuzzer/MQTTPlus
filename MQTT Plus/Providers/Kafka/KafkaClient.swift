@@ -1025,7 +1025,7 @@ private enum KafkaProtocol {
             let crc = innerMsg.crc32()
             
             msgData.appendKafkaInt32(Int32(innerMsg.count + 4))  // Message size
-            msgData.appendKafkaInt32(Int32(crc))
+            msgData.appendKafkaInt32(Int32(bitPattern: crc))
             msgData.append(innerMsg)
             
             messageSet.append(msgData)

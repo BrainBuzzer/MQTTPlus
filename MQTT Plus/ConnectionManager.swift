@@ -174,6 +174,7 @@ class ConnectionManager: ObservableObject {
 
     private var jetStreamConsumeTask: Task<Void, Never>?
     private var jetStreamAckablesById: [UUID: any MQAcknowledgeableMessage] = [:]
+    private var currentJetStreamContext: (stream: String, consumer: String)? = nil
 
     var activeClient: (any MessageQueueClient)? {
         client
@@ -298,6 +299,32 @@ class ConnectionManager: ObservableObject {
         }
     }
 
+    func refresh() {
+        Task {
+            if currentProvider == .nats && mode == .jetstream {
+                await refreshStreams()
+                log("Refreshed JetStream streams", level: .info)
+                
+                // Refresh active consumer if exists
+                if let context = currentJetStreamContext {
+                   stopJetStreamConsume()
+                   log("Refreshing consumer \(context.consumer)...", level: .info)
+                   startJetStreamConsume(stream: context.stream, consumer: context.consumer)
+                }
+            } else if currentProvider == .kafka {
+                if let kafkaClient = client as? StreamingClient {
+                    do {
+                        let topics = try await kafkaClient.listStreams()
+                        streams = topics
+                        log("Refreshed \(topics.count) Kafka topics", level: .info)
+                    } catch {
+                        log("Failed to refresh Kafka topics: \(error.localizedDescription)", level: .warning)
+                    }
+                }
+            }
+        }
+    }
+
     private func sanitizeURL(_ urlString: String) -> String {
         guard var components = URLComponents(string: urlString) else { return urlString }
         components.user = nil
@@ -348,6 +375,7 @@ class ConnectionManager: ObservableObject {
         consumers.removeAll()
         jetStreamConsumeTask?.cancel()
         jetStreamConsumeTask = nil
+        currentJetStreamContext = nil
         jetStreamMessages.removeAll()
         jetStreamAckablesById.removeAll()
         cancellables.removeAll()
@@ -586,6 +614,8 @@ class ConnectionManager: ObservableObject {
 
         jetStreamConsumeTask?.cancel()
         clearJetStreamMessages()
+        
+        currentJetStreamContext = (stream, consumer)
 
         jetStreamConsumeTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard let self else { return }
@@ -611,6 +641,7 @@ class ConnectionManager: ObservableObject {
     func stopJetStreamConsume() {
         jetStreamConsumeTask?.cancel()
         jetStreamConsumeTask = nil
+        currentJetStreamContext = nil
     }
 
     func clearJetStreamMessages() {

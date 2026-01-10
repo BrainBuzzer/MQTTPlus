@@ -44,6 +44,13 @@ struct SessionTabView: View {
                 WelcomeView(connectionState: .disconnected)
             }
         }
+        .background(
+            Button("Refresh") {
+                tabManager.selectedSession?.refresh()
+            }
+            .keyboardShortcut("r", modifiers: .control)
+            .opacity(0)
+        )
     }
 }
 

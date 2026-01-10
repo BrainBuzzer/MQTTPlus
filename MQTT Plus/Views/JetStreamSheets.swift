@@ -256,6 +256,7 @@ struct JetStreamPublishSheet: View {
     
     @State private var subject = ""
     @State private var payload = ""
+    @State private var isSubjectLocked = false
     @State private var isPublishing = false
     @State private var publishResult: MQPublishAck?
     @State private var errorMessage: String?
@@ -284,7 +285,28 @@ struct JetStreamPublishSheet: View {
             // Form
             Form {
                 Section("Message") {
-                    TextField("Subject", text: $subject)
+                    HStack {
+                        TextField("Subject", text: $subject)
+                            .disabled(isSubjectLocked)
+                        
+                        Button(action: { isSubjectLocked.toggle() }) {
+                            Image(systemName: isSubjectLocked ? "lock.fill" : "lock.open.fill")
+                                .foregroundColor(isSubjectLocked ? .secondary : .primary)
+                        }
+                        .buttonStyle(.borderless)
+                        .help(isSubjectLocked ? "Unlock Subject" : "Lock Subject")
+                    }
+                    .onAppear {
+                        if subject.isEmpty {
+                            if let stream = connectionManager.streams.first(where: { $0.name == streamName }),
+                               stream.subjects.count == 1,
+                               let first = stream.subjects.first,
+                               !first.contains("*") && !first.contains(">") {
+                                subject = first
+                                isSubjectLocked = true
+                            }
+                        }
+                    }
                     TextEditor(text: $payload)
                         .font(.system(.body, design: .monospaced))
                         .frame(minHeight: 150)
@@ -347,8 +369,12 @@ struct JetStreamPublishSheet: View {
                     publishResult = ack
                     isPublishing = false
                     // Clear form
-                    subject = ""
+                    // subject = "" // Keep subject for next publish
                     payload = ""
+                    // Lock subject to prevent accidental changes
+                    isSubjectLocked = true
+                    // Refresh capabilities to see new message if consuming
+                    connectionManager.refresh()
                 }
             } catch {
                 await MainActor.run {

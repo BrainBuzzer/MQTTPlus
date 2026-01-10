@@ -12,36 +12,40 @@ struct JetStreamMessageListView: View {
     @State private var selectedMessage: JetStreamMessageEnvelope?
     
     var body: some View {
-        HSplitView {
-            // Left: Message list
-            VStack(spacing: 0) {
-                if connectionManager.jetStreamMessages.isEmpty {
-                    ContentUnavailableView(
-                        "No Messages",
-                        systemImage: "tray",
-                        description: Text("Messages will appear here once received")
-                    )
-                } else {
+        if connectionManager.jetStreamMessages.isEmpty {
+            ContentUnavailableView(
+                "No Messages",
+                systemImage: "tray",
+                description: Text("Messages will appear here once received")
+            )
+        } else {
+            HSplitView {
+                // Left: Message list
+                VStack(spacing: 0) {
                     List(connectionManager.jetStreamMessages, selection: $selectedMessage) { message in
                         JetStreamMessageRowView(message: message)
                             .tag(message)
                     }
                     .listStyle(.plain)
                 }
-            }
-            
-            // Right: Message detail with acknowledgment controls
-            if let message = selectedMessage {
-                MessageDetailWithAckView(
-                    message: message,
-                    connectionManager: connectionManager
-                )
-            } else {
-                ContentUnavailableView(
-                    "Select a Message",
-                    systemImage: "arrow.left",
-                    description: Text("Choose a message to view details")
-                )
+                .frame(minWidth: 200, maxWidth: .infinity, maxHeight: .infinity)
+                
+                // Right: Message detail with acknowledgment controls
+                ZStack {
+                    if let message = selectedMessage {
+                        MessageDetailWithAckView(
+                            message: message,
+                            connectionManager: connectionManager
+                        )
+                    } else {
+                        ContentUnavailableView(
+                            "Select a Message",
+                            systemImage: "arrow.left",
+                            description: Text("Choose a message to view details")
+                        )
+                    }
+                }
+                .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -154,7 +158,7 @@ struct MessageDetailWithAckView: View {
             }
             
             // Message details
-            ScrollView {
+            ScrollView([.horizontal, .vertical]) {
                 VStack(alignment: .leading, spacing: 16) {
                     DetailSection(title: "Subject") {
                         Text(message.subject)

@@ -28,9 +28,7 @@ struct ServerListView: View {
                     ServerRowView(server: server, tabManager: tabManager)
                         .tag(server)
                         .contextMenu {
-                            Button("Delete", role: .destructive) {
-                                deleteServer(server)
-                            }
+                            serverContextMenu(for: server)
                         }
                 }
                 .onDelete(perform: deleteServers)
@@ -72,6 +70,20 @@ struct ServerListView: View {
             try? KeychainService.delete(key: tokenKey)
         }
     }
+
+    @ViewBuilder
+    private func serverContextMenu(for server: ServerConfig) -> some View {
+        Button("Connect (Core)") {
+            tabManager.openTab(for: server, mode: .core)
+        }
+        Button("Connect (JetStream)") {
+            tabManager.openTab(for: server, mode: .jetstream)
+        }
+        Divider()
+        Button("Delete", role: .destructive) {
+            deleteServer(server)
+        }
+    }
 }
 
 struct ServerRowView: View {
@@ -92,14 +104,14 @@ struct ServerRowView: View {
         tabManager.session(for: server.id)
     }
     
-    var isConnected: Bool {
-        session != nil
+    var connectionState: ConnectionState {
+        guard let id = server.id else { return .disconnected }
+        return tabManager.serverStates[id] ?? .disconnected
     }
     
     var body: some View {
         HStack {
-            Image(systemName: providerIcon)
-                .foregroundColor(isConnected ? .green : .secondary)
+            iconView
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(server.name ?? "Unnamed Server")
@@ -111,9 +123,9 @@ struct ServerRowView: View {
             
             Spacer()
             
-            if isConnected {
+            if connectionState != .disconnected {
                 Circle()
-                    .fill(.green)
+                    .fill(connectionColor)
                     .frame(width: 8, height: 8)
             }
         }
@@ -151,6 +163,15 @@ struct ServerRowView: View {
         }
     }
 
+    private var connectionColor: Color {
+        switch connectionState {
+        case .connected: return .green
+        case .connecting: return .orange
+        case .error: return .red
+        case .disconnected: return .secondary
+        }
+    }
+    
     private var urlDisplayText: String {
         let base = server.urlString ?? ""
         if (server.value(forKey: "useTLS") as? Bool) == true {
@@ -160,8 +181,8 @@ struct ServerRowView: View {
     }
     
     private func handleTap() {
-        if isConnected {
-            // If already connected, just switch to that tab
+        if connectionState != .disconnected {
+            // If already connected/connecting, just switch to that tab
             if let id = session?.id {
                 tabManager.selectTab(id: id)
             }
@@ -173,6 +194,21 @@ struct ServerRowView: View {
             default:
                 tabManager.openTab(for: server)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        if let id = server.providerId, let _ = NSImage(named: "icon_\(id)") {
+            Image("icon_\(id)")
+                .resizable()
+                .renderingMode(.template) // Allow tinting
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 16, height: 16)
+                .foregroundColor(connectionState == .connected ? .green : .secondary)
+        } else {
+            Image(systemName: providerIcon)
+                .foregroundColor(connectionState == .connected ? .green : .secondary)
         }
     }
 }

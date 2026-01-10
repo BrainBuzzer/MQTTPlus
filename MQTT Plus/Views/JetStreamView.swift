@@ -163,6 +163,11 @@ struct JetStreamView: View {
                         Button(action: { connectionManager.clearJetStreamMessages() }) {
                             Label("Clear", systemImage: "trash")
                         }
+                        Button(action: { connectionManager.refresh() }) {
+                            Label("Refresh", systemImage: "arrow.clockwise")
+                        }
+                        .help("Refresh Streams and Consumers (Cmd+R)")
+                        .keyboardShortcut("r", modifiers: .command)
                     }
                     .padding()
                     .background(Color(nsColor: .controlBackgroundColor))

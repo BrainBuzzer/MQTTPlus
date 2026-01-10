@@ -15,11 +15,13 @@ class Session: Identifiable, ObservableObject {
     let serverID: UUID? // Optional, in case we have ad-hoc connections later
     
     @Published var connectionManager: ConnectionManager
+    @Published var mode: ConnectionMode
     
-    init(server: ServerConfig) {
+    init(server: ServerConfig, mode: ConnectionMode = .core) {
         self.id = UUID()
         self.name = server.name ?? "Unknown Server"
         self.serverID = server.id
+        self.mode = mode
         self.connectionManager = ConnectionManager() // New instance for this session
     }
     
@@ -28,6 +30,11 @@ class Session: Identifiable, ObservableObject {
         self.id = UUID()
         self.name = name
         self.serverID = nil
+        self.mode = .core
         self.connectionManager = connectionManager ?? ConnectionManager()
+    }
+    
+    func refresh() {
+        connectionManager.refresh()
     }
 }

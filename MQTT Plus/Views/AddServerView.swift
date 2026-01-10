@@ -20,6 +20,12 @@ struct AddServerView: View {
     @State private var user = ""
     @State private var password = ""
     @State private var useTLS = false
+    
+    // Test Connection State
+    @State private var isTesting = false
+    @State private var testResult: Bool? = nil
+    @State private var testMessage: String? = nil
+    @State private var showingTestAlert = false
 
     private var selectedProviderInfo: MQProviderInfo? {
         registry.providerInfo(for: selectedProviderId)
@@ -82,6 +88,10 @@ struct AddServerView: View {
                                 HStack(spacing: 8) {
                                     TextField("127.0.0.1", text: $host)
                                         .textFieldStyle(.roundedBorder)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(testResult == true ? Color.green : Color.clear, lineWidth: 2)
+                                        )
                                     
                                     Text("Port")
                                         .foregroundColor(.secondary)
@@ -90,6 +100,10 @@ struct AddServerView: View {
                                     TextField(portPlaceholder, text: $port)
                                         .textFieldStyle(.roundedBorder)
                                         .frame(width: 60)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(testResult == true ? Color.green : Color.clear, lineWidth: 2)
+                                        )
                                 }
                             }
                             
@@ -140,9 +154,16 @@ struct AddServerView: View {
                     
                     Spacer()
                     
-                    Button("Test") {
-                        // TODO: Implement connection test
+                    Button(action: performTest) {
+                        if isTesting {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.5)
+                        } else {
+                            Text("Test")
+                        }
                     }
+                    .disabled(isTesting || host.isEmpty || port.isEmpty)
                     
                     Button("Connect") {
                         addServer()
@@ -163,6 +184,11 @@ struct AddServerView: View {
             if port.isEmpty {
                 port = String(selectedProviderInfo?.defaultPort ?? 4222)
             }
+        }
+        .alert("Connection Test", isPresented: $showingTestAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(testMessage ?? "Unknown error")
         }
     }
     
@@ -224,6 +250,51 @@ struct AddServerView: View {
 
         return "\(scheme)://\(host):\(port)"
     }
+    
+    private func performTest() {
+        isTesting = true
+        testResult = nil
+        
+        let config = MQConnectionConfig(
+            url: constructURL(),
+            name: "Test Connection",
+            username: user.isEmpty ? nil : user,
+            password: password.isEmpty ? nil : password,
+            token: nil
+        )
+        
+        Task {
+            // Create a temporary client
+            guard let client = registry.createClient(provider: selectedProviderId, config: config) else {
+                await MainActor.run {
+                    isTesting = false
+                    testResult = false
+                    testMessage = "Could not create client for provider \(selectedProviderId)"
+                    showingTestAlert = true
+                }
+                return
+            }
+            
+            do {
+                try await client.connect()
+                // If we get here, connection successful
+                try? await client.disconnect() // Clean up
+                
+                await MainActor.run {
+                    isTesting = false
+                    testResult = true
+                    testMessage = "Successfully connected!"
+                }
+            } catch {
+                await MainActor.run {
+                    isTesting = false
+                    testResult = false
+                    testMessage = "Connection failed: \(error.localizedDescription)"
+                    showingTestAlert = true
+                }
+            }
+        }
+    }
 }
 
 struct ProviderOption: View {
@@ -234,11 +305,18 @@ struct ProviderOption: View {
     var body: some View {
         Button(action: action) {
             VStack {
-                Image(systemName: iconName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 32, height: 32)
-                    .foregroundColor(isSelected ? .white : .primary)
+                if let _ = NSImage(named: "icon_\(info.id)") {
+                    Image("icon_\(info.id)")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 32, height: 32)
+                } else {
+                    Image(systemName: info.iconName)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 32, height: 32)
+                        .foregroundColor(isSelected ? .white : .primary)
+                }
                 
                 Text(info.displayName)
                     .font(.caption)

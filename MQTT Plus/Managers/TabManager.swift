@@ -20,14 +20,14 @@ class TabManager: ObservableObject {
     }
     
     func openTab(for server: ServerConfig, mode: ConnectionMode = .core) {
-        // Check if already open
-        if let existingSession = sessions.first(where: { $0.serverID == server.id }) {
-            selectedSessionID = existingSession.id
-            return
-        }
+        // Allow multiple sessions for the same server
+        // if let existingSession = sessions.first(where: { $0.serverID == server.id }) {
+        //     selectedSessionID = existingSession.id
+        //     return
+        // }
         
         // Create new session
-        let newSession = Session(server: server)
+        let newSession = Session(server: server, mode: mode)
         sessions.append(newSession)
         selectedSessionID = newSession.id
         
@@ -71,6 +71,8 @@ class TabManager: ObservableObject {
                 options: options
             )
         }
+        
+        updateObserving()
     }
     
     func closeTab(id: UUID) {
@@ -93,6 +95,8 @@ class TabManager: ObservableObject {
                 selectedSessionID = sessions[newIndex].id
             }
         }
+        
+        updateObserving()
     }
     
     func selectTab(id: UUID) {
@@ -102,6 +106,56 @@ class TabManager: ObservableObject {
     func session(for serverID: UUID?) -> Session? {
         guard let serverID = serverID else { return nil }
         return sessions.first(where: { $0.serverID == serverID })
+    }
+    
+    // MARK: - Connection State Aggregation
+    
+    @Published var serverStates: [UUID: ConnectionState] = [:]
+    private var sessionCancellables = Set<AnyCancellable>()
+    
+    private func updateObserving() {
+        sessionCancellables.removeAll()
+        
+        for session in sessions {
+            session.connectionManager.$connectionState
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.recalculateServerStates()
+                }
+                .store(in: &sessionCancellables)
+        }
+        
+        recalculateServerStates()
+    }
+    
+    private func recalculateServerStates() {
+        var newStates: [UUID: ConnectionState] = [:]
+        
+        // Group sessions by serverID
+        let grouped = Dictionary(grouping: sessions) { $0.serverID }
+        
+        for (serverID, serverSessions) in grouped {
+            guard let serverID = serverID else { continue }
+            
+            // Determine aggregate state
+            // Priority: Connected > Connecting > Error > Disconnected
+            
+            let allStates = serverSessions.map { $0.connectionManager.connectionState }
+            print("[TabManager] Recalculating state for server \(serverID): \(allStates)")
+            
+            if allStates.contains(where: { $0 == .connected }) {
+                newStates[serverID] = .connected
+            } else if allStates.contains(where: { $0 == .connecting }) {
+                newStates[serverID] = .connecting
+            } else if let errorState = allStates.first(where: { if case .error = $0 { return true }; return false }) {
+                newStates[serverID] = errorState
+            } else {
+                newStates[serverID] = .disconnected
+            }
+        }
+        
+        print("[TabManager] Updated serverStates: \(newStates)")
+        self.serverStates = newStates
     }
 }
 
