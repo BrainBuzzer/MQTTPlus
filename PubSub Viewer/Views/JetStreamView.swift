@@ -9,11 +9,26 @@ import SwiftUI
 
 struct JetStreamView: View {
     @ObservedObject var connectionManager: ConnectionManager
-    @State private var selectedStream: StreamInfo?
-    @State private var selectedConsumer: ConsumerInfo?
+    @State private var selectedStreamName: String?
+    @State private var selectedConsumerName: String?
     @State private var showingStreamCreator = false
     @State private var showingConsumerCreator = false
     @State private var showingPublishSheet = false
+
+    private var selectedStream: MQStreamInfo? {
+        guard let selectedStreamName else { return nil }
+        return connectionManager.streams.first { $0.name == selectedStreamName }
+    }
+
+    private var selectedConsumer: MQConsumerInfo? {
+        guard let selectedStreamName, let selectedConsumerName else { return nil }
+        return (connectionManager.consumers[selectedStreamName] ?? []).first { $0.name == selectedConsumerName }
+    }
+
+    private var consumersForSelectedStream: [MQConsumerInfo] {
+        guard let selectedStreamName else { return [] }
+        return connectionManager.consumers[selectedStreamName] ?? []
+    }
     
     var body: some View {
         GeometryReader { _ in
@@ -39,19 +54,27 @@ struct JetStreamView: View {
                     Divider()
                     
                     // Stream list
-                    if let jetStreamManager = connectionManager.jetStreamManager {
-                        List(jetStreamManager.streams, selection: $selectedStream) { stream in
-                            StreamRowView(stream: stream)
-                                .tag(stream)
+                    if connectionManager.connectionState != .connected {
+                        ContentUnavailableView(
+                            "Not Connected",
+                            systemImage: "bolt.horizontal.circle",
+                            description: Text("Connect to view JetStream streams")
+                        )
+                    } else if connectionManager.streams.isEmpty {
+                        ContentUnavailableView(
+                            "No Streams",
+                            systemImage: "cylinder",
+                            description: Text("Create a stream to get started")
+                        )
+                    } else {
+                        List(selection: $selectedStreamName) {
+                            ForEach(connectionManager.streams) { stream in
+                                StreamRowView(stream: stream)
+                                    .tag(stream.name)
+                            }
                         }
                         .listStyle(.sidebar)
                         .scrollContentBackground(.hidden)
-                    } else {
-                        ContentUnavailableView(
-                            "JetStream Not Available",
-                            systemImage: "exclamationmark.triangle",
-                            description: Text("Connect in JetStream mode to view streams")
-                        )
                     }
                 }
                 .frame(minWidth: 200, maxWidth: 300)
@@ -61,8 +84,8 @@ struct JetStreamView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     // Header
                     HStack {
-                        if let stream = selectedStream {
-                            Text("CONSUMERS: \(stream.name)")
+                        if let streamName = selectedStreamName {
+                            Text("CONSUMERS: \(streamName)")
                                 .font(.headline)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -84,20 +107,19 @@ struct JetStreamView: View {
                     
                     Divider()
                     
-                    if let stream = selectedStream,
-                       let jetStreamManager = connectionManager.jetStreamManager {
-                        let consumers = jetStreamManager.consumers.filter { $0.streamName == stream.name }
-                        
-                        if consumers.isEmpty {
+                    if let streamName = selectedStreamName {
+                        if consumersForSelectedStream.isEmpty {
                             ContentUnavailableView(
                                 "No Consumers",
                                 systemImage: "tray",
-                                description: Text("Create a consumer to start fetching messages")
+                                description: Text("Create a consumer to start receiving messages")
                             )
                         } else {
-                            List(consumers, selection: $selectedConsumer) { consumer in
-                                ConsumerRowView(consumer: consumer)
-                                    .tag(consumer)
+                            List(selection: $selectedConsumerName) {
+                                ForEach(consumersForSelectedStream) { consumer in
+                                    ConsumerRowView(consumer: consumer)
+                                        .tag(consumer.name)
+                                }
                             }
                             .listStyle(.sidebar)
                             .scrollContentBackground(.hidden)
@@ -132,13 +154,13 @@ struct JetStreamView: View {
                         
                         Spacer()
                         
-                        if selectedStream != nil {
+                        if selectedStreamName != nil {
                             Button(action: { showingPublishSheet = true }) {
                                 Label("Publish", systemImage: "paperplane.fill")
                             }
                         }
                         
-                        Button(action: { connectionManager.clearMessages() }) {
+                        Button(action: { connectionManager.clearJetStreamMessages() }) {
                             Label("Clear", systemImage: "trash")
                         }
                     }
@@ -149,7 +171,7 @@ struct JetStreamView: View {
                     Divider()
                     
                     // Message list with JetStream controls
-                    if selectedConsumer != nil {
+                    if selectedConsumerName != nil {
                         JetStreamMessageListView(connectionManager: connectionManager)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
@@ -166,32 +188,52 @@ struct JetStreamView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .sheet(isPresented: $showingStreamCreator) {
-            if let jetStreamManager = connectionManager.jetStreamManager {
-                StreamCreatorSheet(
-                    jetStreamManager: jetStreamManager,
-                    isPresented: $showingStreamCreator
-                )
-            }
+            StreamCreatorSheet(
+                connectionManager: connectionManager,
+                isPresented: $showingStreamCreator
+            )
         }
         .sheet(isPresented: $showingConsumerCreator) {
-            if let stream = selectedStream,
-               let jetStreamManager = connectionManager.jetStreamManager {
+            if let streamName = selectedStreamName {
                 ConsumerCreatorSheet(
-                    jetStreamManager: jetStreamManager,
-                    streamName: stream.name,
+                    connectionManager: connectionManager,
+                    streamName: streamName,
                     isPresented: $showingConsumerCreator
                 )
             }
         }
         .sheet(isPresented: $showingPublishSheet) {
-            if let stream = selectedStream,
-               let jetStreamManager = connectionManager.jetStreamManager {
+            if let streamName = selectedStreamName {
                 JetStreamPublishSheet(
-                    jetStreamManager: jetStreamManager,
-                    streamName: stream.name,
+                    connectionManager: connectionManager,
+                    streamName: streamName,
                     isPresented: $showingPublishSheet
                 )
             }
+        }
+        .onAppear {
+            Task {
+                await connectionManager.refreshStreams()
+            }
+        }
+        .onChange(of: selectedStreamName) { _, newValue in
+            selectedConsumerName = nil
+            connectionManager.stopJetStreamConsume()
+            connectionManager.clearJetStreamMessages()
+
+            if let streamName = newValue {
+                Task {
+                    await connectionManager.refreshConsumers(for: streamName)
+                }
+            }
+        }
+        .onChange(of: selectedConsumerName) { _, newValue in
+            connectionManager.stopJetStreamConsume()
+            connectionManager.clearJetStreamMessages()
+
+            guard let streamName = selectedStreamName,
+                  let consumerName = newValue else { return }
+            connectionManager.startJetStreamConsume(stream: streamName, consumer: consumerName)
         }
     }
 }
@@ -199,7 +241,7 @@ struct JetStreamView: View {
 // MARK: - Stream Row
 
 struct StreamRowView: View {
-    let stream: StreamInfo
+    let stream: MQStreamInfo
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -239,7 +281,7 @@ struct StreamRowView: View {
 // MARK: - Consumer Row
 
 struct ConsumerRowView: View {
-    let consumer: ConsumerInfo
+    let consumer: MQConsumerInfo
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -271,5 +313,5 @@ struct ConsumerRowView: View {
 }
 
 #Preview {
-    JetStreamView(connectionManager: ConnectionManager.shared)
+    JetStreamView(connectionManager: ConnectionManager())
 }

@@ -42,13 +42,16 @@ public final class KafkaClient: @unchecked Sendable {
     private let pendingLock = NSLock()
     
     // Cached topic metadata
+    private let metadataLock = NSLock()
     private var cachedTopics: [KafkaTopicMetadata] = []
     private var brokers: [KafkaBrokerMetadata] = []
     
     // Active subscriptions
     private var subscriptions: [String: AsyncStream<MQMessage>.Continuation] = [:]
+    private var patternTopics: [String: [String]] = [:]
     private let subscriptionsLock = NSLock()
     private var consumeTask: Task<Void, Never>?
+    private var consumeOffsets: [String: [Int32: Int64]] = [:]
     
     // Consumer configuration
     private var consumerGroupId: String = "pubsub-viewer"
@@ -78,9 +81,16 @@ public final class KafkaClient: @unchecked Sendable {
         let continuations = subscriptionsLock.withLock { () -> [AsyncStream<MQMessage>.Continuation] in
             let conts = subscriptions.values.map { $0 }
             subscriptions.removeAll()
+            patternTopics.removeAll()
+            consumeOffsets.removeAll()
             return conts
         }
         continuations.forEach { $0.finish() }
+
+        metadataLock.withLock {
+            cachedTopics.removeAll()
+            brokers.removeAll()
+        }
         
         let pending = pendingLock.withLock { () -> [CheckedContinuation<Data, Error>] in
             let conts = pendingResponses.values.map { $0 }
@@ -112,7 +122,7 @@ extension KafkaClient: MessageQueueClient {
         let endpoint = try KafkaEndpoint.parse(from: config)
         
         do {
-            let conn = try await makeConnection(host: endpoint.host, port: endpoint.port)
+            let conn = try await makeConnection(host: endpoint.host, port: endpoint.port, useTLS: endpoint.useTLS)
             connection = conn
             
             // Start response reader
@@ -140,7 +150,7 @@ extension KafkaClient: MessageQueueClient {
         }
         
         // Find partition leader for topic
-        guard let topic = cachedTopics.first(where: { $0.name == subject }) else {
+        guard let topic = metadataLock.withLock({ cachedTopics.first(where: { $0.name == subject }) }) else {
             throw MQError.publishFailed("Topic not found: \(subject)")
         }
         
@@ -174,8 +184,10 @@ extension KafkaClient: MessageQueueClient {
         // Refresh metadata to ensure we have latest topic info
         try await refreshMetadata()
         
+        let topicsSnapshot = metadataLock.withLock { cachedTopics }
+
         // Find matching topics
-        let matchingTopics = cachedTopics.filter { topicMatches($0.name, pattern: pattern) }
+        let matchingTopics = topicsSnapshot.filter { topicMatches($0.name, pattern: pattern) }
         guard !matchingTopics.isEmpty else {
             throw MQError.subscriptionFailed("No topics match pattern: \(pattern)")
         }
@@ -193,6 +205,7 @@ extension KafkaClient: MessageQueueClient {
                     existing.finish()
                 }
                 self.subscriptions[pattern] = continuation
+                self.patternTopics[pattern] = matchingTopics.map { $0.name }
             }
             
             continuation.onTermination = { @Sendable _ in
@@ -202,17 +215,39 @@ extension KafkaClient: MessageQueueClient {
             }
         }
         
-        guard let continuation = capturedContinuation else { return stream }
-        
-        // Start consuming from topics
-        startConsuming(topics: matchingTopics.map { $0.name }, pattern: pattern, continuation: continuation)
+        _ = capturedContinuation
+        updateConsumingState()
         
         return stream
     }
     
     public func unsubscribe(from pattern: String) async throws {
-        let continuation = subscriptionsLock.withLock { subscriptions.removeValue(forKey: pattern) }
+        let continuation = subscriptionsLock.withLock {
+            patternTopics.removeValue(forKey: pattern)
+            return subscriptions.removeValue(forKey: pattern)
+        }
         continuation?.finish()
+        updateConsumingState()
+    }
+
+    private func updateConsumingState() {
+        let hasActiveTopics: Bool = subscriptionsLock.withLock {
+            let topics = patternTopics.values.flatMap { $0 }
+            return !topics.isEmpty && !subscriptions.isEmpty
+        }
+
+        if !hasActiveTopics {
+            consumeTask?.cancel()
+            consumeTask = nil
+            return
+        }
+
+        if consumeTask == nil {
+            consumeTask = Task { [weak self] in
+                guard let self else { return }
+                await self.runConsumeLoop()
+            }
+        }
     }
 }
 
@@ -226,7 +261,8 @@ extension KafkaClient: StreamingClient {
         
         try await refreshMetadata()
         
-        return cachedTopics.map { topic in
+        let topicsSnapshot = metadataLock.withLock { cachedTopics }
+        return topicsSnapshot.map { topic in
             MQStreamInfo(
                 name: topic.name,
                 subjects: [topic.name],
@@ -361,6 +397,44 @@ extension KafkaClient: StreamingClient {
     }
 }
 
+// MARK: - Kafka Metrics
+
+extension KafkaClient {
+    public func fetchClusterMetrics() async throws -> KafkaMetrics {
+        guard state == .connected else {
+            throw MQError.notConnected
+        }
+
+        try await refreshMetadata()
+
+        let topicsSnapshot = metadataLock.withLock { cachedTopics }
+        let allPartitions = topicsSnapshot.flatMap(\.partitions)
+        let underReplicated = allPartitions.filter { $0.replicas.count > $0.isr.count }.count
+
+        let offsetsSnapshot = subscriptionsLock.withLock { consumeOffsets }
+        var totalLag: Int64 = 0
+        var maxEndOffset: Int64 = 0
+
+        for (topic, partitions) in offsetsSnapshot {
+            for (partition, currentOffset) in partitions {
+                let endOffset = (try? await getPartitionEndOffset(topic: topic, partition: partition)) ?? currentOffset
+                if endOffset > currentOffset {
+                    totalLag += (endOffset - currentOffset)
+                }
+                maxEndOffset = max(maxEndOffset, endOffset)
+            }
+        }
+
+        return KafkaMetrics(
+            partitionCount: allPartitions.count,
+            underReplicatedPartitions: underReplicated,
+            consumerGroupLag: totalLag,
+            isrShrinkRate: 0.0,
+            logEndOffset: maxEndOffset
+        )
+    }
+}
+
 // MARK: - Kafka-Specific Operations
 
 extension KafkaClient {
@@ -371,7 +445,7 @@ extension KafkaClient {
         }
         
         try await refreshMetadata()
-        return cachedTopics.map { $0.name }
+        return metadataLock.withLock { cachedTopics.map { $0.name } }
     }
     
     /// Fetch the last N messages from a topic
@@ -380,7 +454,7 @@ extension KafkaClient {
             throw MQError.notConnected
         }
         
-        guard let topicMeta = cachedTopics.first(where: { $0.name == topic }) else {
+        guard let topicMeta = metadataLock.withLock({ cachedTopics.first(where: { $0.name == topic }) }) else {
             throw MQError.subscriptionFailed("Topic not found: \(topic)")
         }
         
@@ -390,10 +464,20 @@ extension KafkaClient {
         for partition in topicMeta.partitions {
             // Get end offset
             let endOffset = try await getPartitionEndOffset(topic: topic, partition: partition.id)
-            let startOffset = max(0, endOffset - Int64(count / topicMeta.partitions.count))
             
+            // Get beginning offset (valid range start)
+            let beginningOffset = try await getPartitionBeginningOffset(topic: topic, partition: partition.id)
+            
+            // Fetch last 'count' messages from EACH partition to ensuring we capture the global latest
+            // regardless of partition distribution. This may fetch more data but guarantees correctness.
+            // Ensure we don't request below the beginning offset.
+            let startOffset = max(beginningOffset, endOffset - Int64(count))
+            
+            print("[Debug] fetchLastMessages topic=\(topic) p=\(partition.id) end=\(endOffset) start=\(startOffset) beginning=\(beginningOffset)")
+
             // Fetch messages from startOffset to endOffset
             let messages = try await fetchMessages(topic: topic, partition: partition.id, offset: startOffset, maxMessages: count)
+            print("[Debug] fetchLastMessages topic=\(topic) p=\(partition.id) fetched=\(messages.count) messages")
             allMessages.append(contentsOf: messages)
         }
         
@@ -410,7 +494,7 @@ extension KafkaClient {
             throw MQError.notConnected
         }
         
-        guard let topicMeta = cachedTopics.first(where: { $0.name == topic }) else {
+        guard let topicMeta = metadataLock.withLock({ cachedTopics.first(where: { $0.name == topic }) }) else {
             throw MQError.subscriptionFailed("Topic not found: \(topic)")
         }
         
@@ -437,14 +521,14 @@ extension KafkaClient {
 // MARK: - Connection & Transport
 
 private extension KafkaClient {
-    func makeConnection(host: String, port: UInt16) async throws -> NWConnection {
+    func makeConnection(host: String, port: UInt16, useTLS: Bool) async throws -> NWConnection {
         let nwHost = NWEndpoint.Host(host)
         guard let nwPort = NWEndpoint.Port(rawValue: port) else {
             throw MQError.invalidConfiguration("Invalid port: \(port)")
         }
         
         let params: NWParameters
-        if config.tlsEnabled {
+        if useTLS {
             params = NWParameters(tls: NWProtocolTLS.Options(), tcp: NWProtocolTCP.Options())
         } else {
             params = NWParameters.tcp
@@ -569,9 +653,11 @@ private extension KafkaClient {
         
         let response = try await sendRequest(request)
         let metadata = try KafkaProtocol.parseMetadataResponse(response)
-        
-        self.brokers = metadata.brokers
-        self.cachedTopics = metadata.topics
+
+        metadataLock.withLock {
+            self.brokers = metadata.brokers
+            self.cachedTopics = metadata.topics
+        }
     }
     
     func getPartitionEndOffset(topic: String, partition: Int32) async throws -> Int64 {
@@ -581,6 +667,19 @@ private extension KafkaClient {
             topic: topic,
             partition: partition,
             timestamp: -1  // -1 = latest offset
+        )
+        
+        let response = try await sendRequest(request)
+        return try KafkaProtocol.parseListOffsetsResponse(response)
+    }
+
+    func getPartitionBeginningOffset(topic: String, partition: Int32) async throws -> Int64 {
+        let request = try KafkaProtocol.buildListOffsetsRequest(
+            correlationId: nextCorrelationId(),
+            clientId: clientId,
+            topic: topic,
+            partition: partition,
+            timestamp: -2  // -2 = earliest offset
         )
         
         let response = try await sendRequest(request)
@@ -614,54 +713,62 @@ private extension KafkaClient {
         return try KafkaProtocol.parseFetchResponse(response, topic: topic)
     }
     
-    func startConsuming(topics: [String], pattern: String, continuation: AsyncStream<MQMessage>.Continuation) {
-        consumeTask = Task { [weak self] in
-            guard let self else { return }
-            
-            var offsets: [String: [Int32: Int64]] = [:]
-            
-            // Initialize offsets to latest
+    func runConsumeLoop() async {
+        while !Task.isCancelled {
+            let topics = subscriptionsLock.withLock { Array(Set(patternTopics.values.flatMap { $0 })) }
+            if topics.isEmpty { break }
+
+            let routes: [(continuation: AsyncStream<MQMessage>.Continuation, topics: Set<String>)] = subscriptionsLock.withLock {
+                subscriptions.map { pattern, continuation in
+                    (continuation: continuation, topics: Set(patternTopics[pattern] ?? []))
+                }
+            }
+
             for topic in topics {
-                guard let meta = self.cachedTopics.first(where: { $0.name == topic }) else { continue }
-                offsets[topic] = [:]
-                for partition in meta.partitions {
-                    if let offset = try? await self.getPartitionEndOffset(topic: topic, partition: partition.id) {
-                        offsets[topic]?[partition.id] = offset
-                    }
-                }
-            }
-            
-            while !Task.isCancelled {
-                for topic in topics {
-                    guard let meta = self.cachedTopics.first(where: { $0.name == topic }) else { continue }
-                    
-                    for partition in meta.partitions {
-                        guard let currentOffset = offsets[topic]?[partition.id] else { continue }
-                        
-                        do {
-                            let messages = try await self.fetchMessages(
-                                topic: topic,
-                                partition: partition.id,
-                                offset: currentOffset,
-                                maxMessages: 100
-                            )
-                            
-                            for message in messages {
-                                continuation.yield(message)
-                            }
-                            
-                            if !messages.isEmpty {
-                                offsets[topic]?[partition.id] = currentOffset + Int64(messages.count)
-                            }
-                        } catch {
-                            // Continue on fetch errors
+                let topicMeta = metadataLock.withLock { cachedTopics.first { $0.name == topic } }
+                guard let topicMeta else { continue }
+
+                for partition in topicMeta.partitions {
+                    var currentOffset = subscriptionsLock.withLock { consumeOffsets[topic]?[partition.id] }
+                    if currentOffset == nil {
+                        // Start from earliest available offset
+                        let end = (try? await getPartitionBeginningOffset(topic: topic, partition: partition.id)) ?? 0
+                        subscriptionsLock.withLock {
+                            if consumeOffsets[topic] == nil { consumeOffsets[topic] = [:] }
+                            consumeOffsets[topic]?[partition.id] = end
                         }
+                        currentOffset = end
+                    }
+                    guard let currentOffset else { continue }
+
+                    do {
+                        let messages = try await fetchMessages(
+                            topic: topic,
+                            partition: partition.id,
+                            offset: currentOffset,
+                            maxMessages: 100
+                        )
+
+                        for message in messages {
+                            for route in routes where route.topics.contains(topic) {
+                                route.continuation.yield(message)
+                            }
+                        }
+
+                        if !messages.isEmpty {
+                            subscriptionsLock.withLock {
+                                if consumeOffsets[topic] == nil { consumeOffsets[topic] = [:] }
+                                consumeOffsets[topic]?[partition.id] = currentOffset + Int64(messages.count)
+                            }
+                        }
+                    } catch {
+                        // Continue on fetch errors
                     }
                 }
-                
-                // Poll interval
-                try? await Task.sleep(for: .milliseconds(500))
             }
+
+            // Poll interval
+            try? await Task.sleep(for: .milliseconds(500))
         }
     }
     
@@ -841,7 +948,10 @@ private enum KafkaProtocol {
         
         _ = data.readKafkaInt32(at: &offset)  // Partition
         let errorCode = data.readKafkaInt16(at: &offset)
-        guard errorCode == 0 else { return [] }
+        guard errorCode == 0 else {
+            print("[Debug] parseFetchResponse error code: \(errorCode)")
+            throw MQError.subscriptionFailed("Kafka Fetch Error: \(errorCode)")
+        }
         
         _ = data.readKafkaInt64(at: &offset)  // High watermark
         let messageSetSize = data.readKafkaInt32(at: &offset)

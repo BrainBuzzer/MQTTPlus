@@ -51,24 +51,41 @@ struct ServerListView: View {
     }
     
     private func deleteServer(_ server: ServerConfig) {
+        cleanupCredentials(for: server)
         viewContext.delete(server)
         try? viewContext.save()
     }
     
     private func deleteServers(offsets: IndexSet) {
-        offsets.map { servers[$0] }.forEach(viewContext.delete)
+        offsets.map { servers[$0] }.forEach { server in
+            cleanupCredentials(for: server)
+            viewContext.delete(server)
+        }
         try? viewContext.save()
+    }
+
+    private func cleanupCredentials(for server: ServerConfig) {
+        if let passwordKey = server.value(forKey: "passwordKeychainId") as? String, !passwordKey.isEmpty {
+            try? KeychainService.delete(key: passwordKey)
+        }
+        if let tokenKey = server.value(forKey: "tokenKeychainId") as? String, !tokenKey.isEmpty {
+            try? KeychainService.delete(key: tokenKey)
+        }
     }
 }
 
 struct ServerRowView: View {
     let server: ServerConfig
     @ObservedObject var tabManager: TabManager
+    @ObservedObject private var providerRegistry = MQProviderRegistry.shared
     @State private var showingModeSelector = false
     @State private var selectedMode: ConnectionMode = .core
 
     private var provider: MQProviderKind? {
-        MQProviderKind(urlString: server.urlString ?? "")
+        if let providerId = server.providerId, !providerId.isEmpty {
+            return MQProviderKind(providerId: providerId)
+        }
+        return MQProviderKind(urlString: server.urlString ?? "")
     }
     
     var session: Session? {
@@ -87,7 +104,7 @@ struct ServerRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(server.name ?? "Unnamed Server")
                     .font(.headline)
-                Text(server.urlString ?? "")
+                Text(urlDisplayText)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -117,6 +134,11 @@ struct ServerRowView: View {
     }
 
     private var providerIcon: String {
+        if let providerId = server.providerId,
+           let info = providerRegistry.providerInfo(for: providerId) {
+            return info.iconName
+        }
+
         switch provider {
         case .nats:
             return "antenna.radiowaves.left.and.right"
@@ -127,6 +149,14 @@ struct ServerRowView: View {
         case nil:
             return "server.rack"
         }
+    }
+
+    private var urlDisplayText: String {
+        let base = server.urlString ?? ""
+        if (server.value(forKey: "useTLS") as? Bool) == true {
+            return "\(base) (TLS)"
+        }
+        return base
     }
     
     private func handleTap() {

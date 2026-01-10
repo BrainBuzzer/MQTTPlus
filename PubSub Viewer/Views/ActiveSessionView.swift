@@ -14,6 +14,8 @@ struct ActiveSessionView: View {
     @State private var newSubject = ""
     @State private var selectedSubject: String?
     @State private var showingPublishSheet = false
+    @State private var republishMessage: ReceivedMessage?
+    @State private var searchText = ""
     
     @State private var showingConsole = false
     @State private var showingInspector = false
@@ -35,7 +37,7 @@ struct ActiveSessionView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     // Header to match right pane toolbar
                     HStack {
-                        Text("FILTERS")
+                        Text("SUBSCRIPTIONS")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -72,11 +74,14 @@ struct ActiveSessionView: View {
                     .padding(.bottom, 16)
                     
                     List(selection: $selectedSubject) {
-                        Section("Active Filters") {
+                        Section("Subscriptions") {
                             // "All Messages" special filter
                             HStack {
                                 Label("All Messages", systemImage: "tray.full")
                                 Spacer()
+                                Text(connectionManager.isFirehoseEnabled ? "Firehose" : "—")
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(connectionManager.isFirehoseEnabled ? .green : .secondary)
                                 Text("\(messageCount(for: ">"))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -105,9 +110,39 @@ struct ActiveSessionView: View {
                                             selectedSubject = nil
                                         }
                                     } label: {
-                                        Label("Remove Filter", systemImage: "trash")
+                                        Label("Unsubscribe", systemImage: "trash")
                                     }
                                 }
+                            }
+                        }
+
+                        if connectionManager.currentProvider == .kafka, !connectionManager.streams.isEmpty {
+                            Section("Topics") {
+                            
+                            ForEach(connectionManager.streams.map(\.name).filter { !connectionManager.subscribedSubjects.contains($0) }, id: \.self) { topic in
+                                HStack {
+                                    Label(topic, systemImage: "list.bullet.rectangle")
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                                .tag(topic)
+                                .simultaneousGesture(TapGesture(count: 2).onEnded {
+                                    connectionManager.subscribe(to: topic)
+                                })
+                                .simultaneousGesture(TapGesture().onEnded {
+                                    if selectedSubject != topic {
+                                        selectedSubject = topic
+                                    }
+                                })
+                                .contextMenu {
+                                    Button {
+                                        connectionManager.subscribe(to: topic)
+                                        selectedSubject = topic
+                                    } label: {
+                                        Label("Subscribe", systemImage: "plus")
+                                    }
+                                }
+                            }
                             }
                         }
                     }
@@ -127,11 +162,50 @@ struct ActiveSessionView: View {
                                 Text(subject)
                                     .font(.headline)
                             } else {
-                                Text("Select a subscription")
+                                Text("All Messages")
                                     .foregroundColor(.secondary)
                             }
                             
                             Spacer()
+
+                            Toggle(isOn: Binding(
+                                get: { connectionManager.isFirehoseEnabled },
+                                set: { connectionManager.setFirehoseEnabled($0) }
+                            )) {
+                                Label("Firehose", systemImage: "tray.full")
+                            }
+                            .toggleStyle(.button)
+                            .help("Subscribe to all messages (can be heavy for Kafka/Redis)")
+                            .disabled(connectionManager.connectionState != .connected)
+
+                            Toggle(isOn: Binding(
+                                get: { connectionManager.isPaused },
+                                set: { connectionManager.setPaused($0) }
+                            )) {
+                                if connectionManager.pausedMessageCount > 0 {
+                                    Label("Paused (\(connectionManager.pausedMessageCount))", systemImage: "pause.circle.fill")
+                                } else {
+                                    Label("Pause", systemImage: "pause.circle")
+                                }
+                            }
+                            .toggleStyle(.button)
+                            .help("Pause UI updates (buffer incoming messages)")
+                            .disabled(connectionManager.connectionState != .connected)
+
+                            TextField("Search", text: $searchText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                                .help("Search subject/payload")
+
+                            Menu {
+                                Button("Keep last 200") { connectionManager.setMessageRetentionLimit(200) }
+                                Button("Keep last 500") { connectionManager.setMessageRetentionLimit(500) }
+                                Button("Keep last 1000") { connectionManager.setMessageRetentionLimit(1000) }
+                                Button("Keep last 5000") { connectionManager.setMessageRetentionLimit(5000) }
+                            } label: {
+                                Label("\(connectionManager.messageRetentionLimit)", systemImage: "tray.and.arrow.down")
+                            }
+                            .help("Message retention limit")
                             
                             Toggle(isOn: $showingInspector) {
                                 Label("Inspector", systemImage: "gauge.with.dots.needle.bottom.50percent")
@@ -161,7 +235,11 @@ struct ActiveSessionView: View {
                         // Messages
                         MessageLogView(
                             messages: filteredMessages,
-                            connectionManager: connectionManager
+                            connectionManager: connectionManager,
+                            onRepublish: { message in
+                                self.republishMessage = message
+                                self.showingPublishSheet = true
+                            }
                         )
                     }
                     .frame(minHeight: 200, maxHeight: .infinity)
@@ -183,16 +261,46 @@ struct ActiveSessionView: View {
             }
         }
         .sheet(isPresented: $showingPublishSheet) {
-            PublishSheet(connectionManager: connectionManager, isPresented: $showingPublishSheet)
+            PublishSheet(
+                connectionManager: connectionManager,
+                isPresented: $showingPublishSheet,
+                initialSubject: republishMessage?.subject ?? selectedSubject,
+                initialPayload: republishMessage?.payload
+            )
+        }
+        .onChange(of: showingPublishSheet) { 
+            if !showingPublishSheet {
+                republishMessage = nil
+            }
+        }
+        .onChange(of: selectedSubject) { _, newSubject in
+            guard let subject = newSubject else { return }
+            
+            // Only preview if it's a topic (not firehose) and NOT subscribed
+            if subject != ">" && !connectionManager.subscribedSubjects.contains(subject) {
+                connectionManager.previewTopic(subject)
+            }
         }
     } // End of coreNatsView
     
     private var filteredMessages: [ReceivedMessage] {
+        let search = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var base: [ReceivedMessage]
         if let subject = selectedSubject {
-            // Use NATS wildcard matching instead of exact string equality
-            return connectionManager.messages.filter { messageMatches(subject: $0.subject, pattern: subject) }
+            base = connectionManager.messages.filter { messageMatches(subject: $0.subject, pattern: subject) }
+        } else {
+            base = connectionManager.messages
         }
-        return connectionManager.messages
+
+        guard !search.isEmpty else { return base }
+
+        return base.filter { message in
+            if message.subject.localizedCaseInsensitiveContains(search) { return true }
+            if message.payload.localizedCaseInsensitiveContains(search) { return true }
+            if let replyTo = message.replyTo, replyTo.localizedCaseInsensitiveContains(search) { return true }
+            return false
+        }
     }
     
     private func messageCount(for subject: String) -> Int {
@@ -203,9 +311,12 @@ struct ActiveSessionView: View {
     private func messageMatches(subject: String, pattern: String) -> Bool {
         if pattern == ">" { return true }
         if pattern == subject { return true }
-        if connectionManager.currentProvider == .redis {
+        switch connectionManager.currentProvider {
+        case .redis:
             return redisGlobMatch(subject: subject, pattern: pattern)
-        } else {
+        case .kafka:
+            return kafkaTopicMatch(topic: subject, pattern: pattern)
+        case .nats, nil:
             return natsSubjectMatch(subject: subject, pattern: pattern)
         }
     }
@@ -244,6 +355,15 @@ struct ActiveSessionView: View {
 
         // If pattern ended without '>', ensure we consumed all subject tokens
         return patternTokens.count == subjectTokens.count
+    }
+
+    private func kafkaTopicMatch(topic: String, pattern: String) -> Bool {
+        if pattern == "*" { return true }
+        guard pattern.contains("*") else { return topic == pattern }
+
+        let escaped = NSRegularExpression.escapedPattern(for: pattern)
+        let regex = "^\(escaped.replacingOccurrences(of: "\\\\*", with: ".*"))$"
+        return topic.range(of: regex, options: [.regularExpression]) != nil
     }
 
     private func redisGlobMatch(subject: String, pattern: String) -> Bool {
@@ -335,5 +455,5 @@ struct ActiveSessionView: View {
 }
 
 #Preview {
-    ActiveSessionView(connectionManager: ConnectionManager.shared)
+    ActiveSessionView(connectionManager: ConnectionManager())
 }

@@ -9,20 +9,20 @@ import SwiftUI
 
 struct JetStreamMessageListView: View {
     @ObservedObject var connectionManager: ConnectionManager
-    @State private var selectedMessage: ReceivedMessage?
+    @State private var selectedMessage: JetStreamMessageEnvelope?
     
     var body: some View {
         HSplitView {
             // Left: Message list
             VStack(spacing: 0) {
-                if connectionManager.messages.isEmpty {
+                if connectionManager.jetStreamMessages.isEmpty {
                     ContentUnavailableView(
                         "No Messages",
                         systemImage: "tray",
                         description: Text("Messages will appear here once received")
                     )
                 } else {
-                    List(connectionManager.messages, selection: $selectedMessage) { message in
+                    List(connectionManager.jetStreamMessages, selection: $selectedMessage) { message in
                         JetStreamMessageRowView(message: message)
                             .tag(message)
                     }
@@ -34,7 +34,7 @@ struct JetStreamMessageListView: View {
             if let message = selectedMessage {
                 MessageDetailWithAckView(
                     message: message,
-                    jetStreamManager: connectionManager.jetStreamManager
+                    connectionManager: connectionManager
                 )
             } else {
                 ContentUnavailableView(
@@ -48,7 +48,7 @@ struct JetStreamMessageListView: View {
 }
 
 struct JetStreamMessageRowView: View {
-    let message: ReceivedMessage
+    let message: JetStreamMessageEnvelope
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -57,12 +57,12 @@ struct JetStreamMessageRowView: View {
                     .font(.system(.body, design: .monospaced))
                     .fontWeight(.medium)
                 Spacer()
-                Text(formatTime(message.receivedAt))
+                Text(formatTime(message.timestamp))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             
-            Text(preview(message.payload))
+            Text(preview(message.payloadString))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -86,8 +86,8 @@ struct JetStreamMessageRowView: View {
 }
 
 struct MessageDetailWithAckView: View {
-    let message: ReceivedMessage
-    let jetStreamManager: JetStreamManager?
+    let message: JetStreamMessageEnvelope
+    @ObservedObject var connectionManager: ConnectionManager
     
     @State private var ackInProgress = false
     @State private var ackStatus: String?
@@ -132,7 +132,7 @@ struct MessageDetailWithAckView: View {
                     .buttonStyle(.bordered)
                     .help("In Progress: Extend ack deadline")
                 }
-                .disabled(ackInProgress || jetStreamManager == nil)
+                .disabled(ackInProgress || connectionManager.connectionState != .connected)
             }
             .padding()
             .background(Color(nsColor: .controlBackgroundColor))
@@ -171,7 +171,7 @@ struct MessageDetailWithAckView: View {
                     }
                     
                     DetailSection(title: "Payload") {
-                        Text(message.payload)
+                        Text(message.payloadString)
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -182,11 +182,14 @@ struct MessageDetailWithAckView: View {
                     
                     DetailSection(title: "Metadata") {
                         VStack(alignment: .leading, spacing: 8) {
-                            MetadataRow(label: "Received", value: formatDateTime(message.receivedAt))
+                            MetadataRow(label: "Time", value: formatDateTime(message.metadata.timestamp))
                             MetadataRow(label: "Size", value: "\(message.byteCount) bytes")
-                            
-                            // JetStream metadata would go here
-                            // TODO: After migration, show stream sequence, consumer sequence, etc.
+                            MetadataRow(label: "Stream", value: message.metadata.streamName)
+                            MetadataRow(label: "Consumer", value: message.metadata.consumerName ?? "—")
+                            MetadataRow(label: "Stream Seq", value: "\(message.metadata.streamSequence)")
+                            MetadataRow(label: "Consumer Seq", value: message.metadata.consumerSequence.map { String($0) } ?? "—")
+                            MetadataRow(label: "Delivered", value: "\(message.metadata.deliveryCount)")
+                            MetadataRow(label: "Pending", value: "\(message.metadata.pending)")
                         }
                     }
                     
@@ -212,16 +215,13 @@ struct MessageDetailWithAckView: View {
         }
     }
     
-    private func acknowledgeMessage(_ type: AckType) {
-        guard let jetStreamManager = jetStreamManager else { return }
-        
+    private func acknowledgeMessage(_ type: MQAckType) {
         ackInProgress = true
-        ackStatus = "Processing \(type.rawValue)..."
+        ackStatus = "Processing \(type.rawValue)…"
         
         Task {
             do {
-                // TODO: After migration, implement actual acknowledgment
-                // try await jetStreamManager.acknowledge(metadata: messageMetadata, type: type)
+                try await connectionManager.acknowledgeJetStreamMessage(id: message.id, type: type)
                 
                 await MainActor.run {
                     ackStatus = "\(type.rawValue) sent successfully"
@@ -285,5 +285,5 @@ struct MetadataRow: View {
 }
 
 #Preview {
-    JetStreamMessageListView(connectionManager: ConnectionManager.shared)
+    JetStreamMessageListView(connectionManager: ConnectionManager())
 }

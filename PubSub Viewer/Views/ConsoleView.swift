@@ -85,7 +85,7 @@ struct ConsoleView: View {
 }
 
 #Preview {
-    let manager = ConnectionManager.shared
+    let manager = ConnectionManager()
     manager.log("Test Info Log", level: .info)
     manager.log("Test Warning Log", level: .warning)
     manager.log("Test Error Log", level: .error)

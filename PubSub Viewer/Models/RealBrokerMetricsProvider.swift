@@ -42,11 +42,18 @@ public final class RealBrokerMetricsProvider: ObservableObject {
     init(connectionManager: ConnectionManager) {
         self.connectionManager = connectionManager
         
-        // Subscribe to stream updates
+        // Subscribe to stream/consumer updates (JetStream)
         connectionManager.$streams
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] streams in
-                self?.updateNatsFromStreams(streams)
+            .sink { [weak self] _ in
+                self?.recomputeNatsMetrics()
+            }
+            .store(in: &cancellables)
+
+        connectionManager.$consumers
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.recomputeNatsMetrics()
             }
             .store(in: &cancellables)
         
@@ -55,14 +62,6 @@ public final class RealBrokerMetricsProvider: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] provider in
                 self?.updateBrokerType(from: provider)
-            }
-            .store(in: &cancellables)
-        
-        // Subscribe to message count for basic metrics
-        connectionManager.$messages
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] messages in
-                self?.updateFromMessages(messages)
             }
             .store(in: &cancellables)
         
@@ -95,57 +94,48 @@ public final class RealBrokerMetricsProvider: ObservableObject {
         }
     }
     
-    private func updateNatsFromStreams(_ streams: [MQStreamInfo]) {
+    private func recomputeNatsMetrics() {
+        guard brokerType == .nats, let manager = connectionManager else { return }
+
+        guard manager.mode == .jetstream else {
+            natsMetrics = NatsMetrics(streamName: "JetStream disabled")
+            return
+        }
+
+        let streams = manager.streams
         guard !streams.isEmpty else {
             natsMetrics = NatsMetrics(streamName: "No streams")
             return
         }
-        
-        // Aggregate metrics from all streams
+
         var totalMsgs: UInt64 = 0
         var totalBytes: UInt64 = 0
         for stream in streams {
             totalMsgs += stream.messageCount
             totalBytes += stream.byteCount
         }
+
+        let totalPending: UInt64 = manager.consumers.values
+            .flatMap { $0 }
+            .reduce(0) { $0 + $1.pending }
+
+        let slowConsumers = manager.consumers.values
+            .flatMap { $0 }
+            .filter { $0.pending > 1000 }
+            .count
+
         let firstStream = streams.first!
-        
         natsMetrics = NatsMetrics(
             streamName: streams.count == 1 ? firstStream.name : "\(streams.count) streams",
             storageType: firstStream.storage,
             msgCount: totalMsgs,
             byteCount: totalBytes,
-            consumerLag: 0, // Would need consumer info
-            slowConsumerCount: 0
+            consumerLag: totalPending,
+            slowConsumerCount: slowConsumers
         )
-        
-        // Update history
+
         natsMsgHistory.append(Double(totalMsgs))
-        natsLagHistory.append(0) // Placeholder until we have consumer lag data
-    }
-    
-    private func updateFromMessages(_ messages: [ReceivedMessage]) {
-        // Update basic message count metrics
-        let msgCount = messages.count
-        
-        switch brokerType {
-        case .nats:
-            // Message count is handled by streams
-            break
-        case .redis:
-            // Update ops based on message throughput
-            redisMetrics = RedisMetrics(
-                usedMemoryHuman: "—",
-                usedMemoryBytes: 0,
-                instantaneousOpsPerSec: msgCount,
-                connectedClients: 1,
-                memFragmentationRatio: 1.0,
-                totalNetInputBytes: UInt64(messages.reduce(0) { $0 + $1.byteCount })
-            )
-        case .kafka:
-            // Basic Kafka metrics from messages
-            break
-        }
+        natsLagHistory.append(Double(totalPending))
     }
     
     private func refreshMetrics() async {
@@ -176,45 +166,32 @@ public final class RealBrokerMetricsProvider: ObservableObject {
     // MARK: - Redis Metrics
     
     private func refreshRedisMetrics() async {
-        // Redis INFO command would go here
-        // For now, use message-based metrics
         guard let manager = connectionManager else { return }
-        
-        let msgCount = manager.messages.count
-        let totalBytes = manager.messages.reduce(0) { $0 + $1.payload.count }
-        
-        redisMetrics = RedisMetrics(
-            usedMemoryHuman: "—",
-            usedMemoryBytes: 0,
-            instantaneousOpsPerSec: msgCount,
-            connectedClients: 1,
-            memFragmentationRatio: 1.0,
-            totalNetInputBytes: UInt64(totalBytes)
-        )
-        
-        redisOpsHistory.append(Double(msgCount))
-        redisMemoryHistory.append(Double(totalBytes) / 1_000_000)
+        guard let redisClient = manager.activeClient as? RedisClient else { return }
+
+        do {
+            let metrics = try await redisClient.fetchServerMetrics()
+            redisMetrics = metrics
+            redisOpsHistory.append(Double(metrics.instantaneousOpsPerSec))
+            redisMemoryHistory.append(Double(metrics.usedMemoryBytes) / 1_000_000)
+        } catch {
+            redisMetrics = RedisMetrics(usedMemoryHuman: "—")
+        }
     }
     
     // MARK: - Kafka Metrics
     
     private func refreshKafkaMetrics() async {
         guard let manager = connectionManager else { return }
-        
-        // Get partition count from streams (topics)
-        let topics = manager.streams
-        let partitionCount = topics.count
-        let totalMsgs = manager.messages.count
-        
-        kafkaMetrics = KafkaMetrics(
-            partitionCount: partitionCount,
-            underReplicatedPartitions: 0,
-            consumerGroupLag: Int64(totalMsgs),
-            isrShrinkRate: 0.0,
-            logEndOffset: Int64(totalMsgs)
-        )
-        
-        kafkaLagHistory.append(Double(totalMsgs))
-        kafkaUrpHistory.append(0)
+        guard let kafkaClient = manager.activeClient as? KafkaClient else { return }
+
+        do {
+            let metrics = try await kafkaClient.fetchClusterMetrics()
+            kafkaMetrics = metrics
+            kafkaLagHistory.append(Double(metrics.consumerGroupLag))
+            kafkaUrpHistory.append(Double(metrics.underReplicatedPartitions))
+        } catch {
+            kafkaMetrics = KafkaMetrics()
+        }
     }
 }

@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import CoreData
 
 @MainActor
 class TabManager: ObservableObject {
@@ -32,11 +33,42 @@ class TabManager: ObservableObject {
         
         // Auto-connect
         Task {
+            let tlsEnabled = (server.value(forKey: "useTLS") as? Bool) == true
+            let username = server.value(forKey: "username") as? String
+
+            let password: String? = {
+                guard let key = server.value(forKey: "passwordKeychainId") as? String,
+                      !key.isEmpty else { return nil }
+                return try? KeychainService.readString(key: key)
+            }()
+
+            let token: String? = {
+                guard let key = server.value(forKey: "tokenKeychainId") as? String,
+                      !key.isEmpty else { return nil }
+                return try? KeychainService.readString(key: key)
+            }()
+
+            let options: [String: String] = {
+                guard let json = server.value(forKey: "optionsJSON") as? String,
+                      !json.isEmpty,
+                      let data = json.data(using: .utf8),
+                      let decoded = (try? JSONSerialization.jsonObject(with: data)) as? [String: String] else {
+                    return [:]
+                }
+                return decoded
+            }()
+
             await newSession.connectionManager.connect(
                 to: server.urlString ?? "",
+                providerId: server.providerId,
                 serverName: server.name ?? "Unknown",
                 serverID: server.id,
-                mode: mode
+                mode: mode,
+                username: username,
+                password: password,
+                token: token,
+                tlsEnabledOverride: tlsEnabled,
+                options: options
             )
         }
     }
@@ -72,3 +104,4 @@ class TabManager: ObservableObject {
         return sessions.first(where: { $0.serverID == serverID })
     }
 }
+

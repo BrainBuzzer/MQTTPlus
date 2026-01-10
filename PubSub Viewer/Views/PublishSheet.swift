@@ -11,6 +11,9 @@ struct PublishSheet: View {
     @ObservedObject var connectionManager: ConnectionManager
     @Binding var isPresented: Bool
     
+    var initialSubject: String?
+    var initialPayload: String?
+    
     @State private var subject = ""
     @State private var payload = ""
     @State private var isValidJSON = false
@@ -97,9 +100,18 @@ struct PublishSheet: View {
                 .disabled(subject.isEmpty || payload.isEmpty)
             }
             .padding()
-        }
-        .frame(width: 500, height: 400)
     }
+    .frame(width: 500, height: 400)
+    .onAppear {
+        if let initial = initialSubject, subject.isEmpty {
+            subject = initial
+        }
+        if let initialPayload = initialPayload, payload.isEmpty {
+            payload = initialPayload
+            validateJSON()
+        }
+    }
+}
     
     private func validateJSON() {
         guard let data = payload.data(using: .utf8) else {
@@ -126,5 +138,5 @@ struct PublishSheet: View {
 }
 
 #Preview {
-    PublishSheet(connectionManager: ConnectionManager.shared, isPresented: .constant(true))
+    PublishSheet(connectionManager: ConnectionManager(), isPresented: .constant(true))
 }

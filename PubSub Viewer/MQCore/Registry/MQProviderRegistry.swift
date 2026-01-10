@@ -121,6 +121,7 @@ public extension MQProviderInfo {
 // MARK: - App Registration
 
 /// Call this at app startup to register all providers
+@MainActor
 public func registerAllProviders() {
     let registry = MQProviderRegistry.shared
     

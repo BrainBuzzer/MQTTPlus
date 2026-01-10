@@ -3,6 +3,14 @@
     <entity name="ServerConfig" representedClassName="ServerConfig" syncable="YES" codeGenerationType="class">
         <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="providerId" optional="YES" attributeType="String"/>
+        <attribute name="host" optional="YES" attributeType="String"/>
+        <attribute name="port" optional="YES" attributeType="Integer 32" usesScalarValueType="YES"/>
+        <attribute name="useTLS" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="username" optional="YES" attributeType="String"/>
+        <attribute name="passwordKeychainId" optional="YES" attributeType="String"/>
+        <attribute name="tokenKeychainId" optional="YES" attributeType="String"/>
+        <attribute name="optionsJSON" optional="YES" attributeType="String"/>
         <attribute name="urlString" optional="YES" attributeType="String"/>
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
     </entity>

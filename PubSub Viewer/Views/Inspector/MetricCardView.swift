@@ -1,11 +1,3 @@
-//
-//  MetricCardView.swift
-//  PubSub Viewer
-//
-//  Reusable metric card component with sparkline chart
-//  Uses glassmorphism styling and Swift Charts
-//
-
 import SwiftUI
 import Charts
 
@@ -84,9 +76,23 @@ struct MetricCardView: View {
                 }
             }
             
-            // Sparkline chart
-            if showSparkline && !history.isEmpty {
-                sparklineChart
+            // Sparkline chart (always reserve space)
+            if showSparkline {
+                if !history.isEmpty {
+                    sparklineChart
+                        .frame(height: 30)
+                } else {
+                    Color.clear
+                        .frame(height: 30)
+                }
+            } else {
+                 // Even if sparkline is hidden, reserve space to align with other cards? 
+                 // If the user wants ALL cards to be same height, yes. 
+                 // But let's assume showSparkline=false means it's a Compact card or we just want to hide it.
+                 // Actually, the user said "regardless of graphs embedded in them".
+                 // This implies cards WITH graphs and cards WITHOUT graphs should match.
+                 // So we should probably ALWAYS reserve this space or set a fixed total height.
+                 Color.clear
                     .frame(height: 30)
             }
         }

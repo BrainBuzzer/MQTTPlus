@@ -10,6 +10,7 @@ import SwiftUI
 struct MessageLogView: View {
     let messages: [ReceivedMessage]
     @ObservedObject var connectionManager: ConnectionManager
+    var onRepublish: ((ReceivedMessage) -> Void)?
     
     @State private var selectedMessage: ReceivedMessage?
     
@@ -32,7 +33,7 @@ struct MessageLogView: View {
                 // Message list
                 List(selection: $selectedMessage) {
                     ForEach(messages) { message in
-                        MessageRowView(message: message, dateFormatter: dateFormatter)
+                        MessageRowView(message: message, dateFormatter: dateFormatter, onRepublish: onRepublish)
                             .tag(message)
                     }
                 }
@@ -41,7 +42,7 @@ struct MessageLogView: View {
                 
                 // Message detail
                 if let message = selectedMessage {
-                    MessageDetailView(message: message, dateFormatter: dateFormatter)
+                    MessageDetailView(message: message, dateFormatter: dateFormatter, onRepublish: onRepublish)
                         .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ContentUnavailableView(
@@ -59,6 +60,7 @@ struct MessageLogView: View {
 struct MessageRowView: View {
     let message: ReceivedMessage
     let dateFormatter: DateFormatter
+    var onRepublish: ((ReceivedMessage) -> Void)?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -99,12 +101,20 @@ struct MessageRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 6)
+        .contextMenu {
+            Button {
+                onRepublish?(message)
+            } label: {
+                Label("Republish", systemImage: "paperplane")
+            }
+        }
     }
 }
 
 struct MessageDetailView: View {
     let message: ReceivedMessage
     let dateFormatter: DateFormatter
+    var onRepublish: ((ReceivedMessage) -> Void)?
     
     @State private var formattedPayload: String = ""
     @State private var isValidJSON: Bool = false
@@ -229,6 +239,10 @@ struct MessageDetailView: View {
                 Button(action: copyToClipboard) {
                     Label("Copy Payload", systemImage: "doc.on.doc")
                 }
+                
+                Button(action: { onRepublish?(message) }) {
+                    Label("Republish", systemImage: "paperplane")
+                }
             }
             .padding()
             .background(Color(nsColor: .windowBackgroundColor))
@@ -320,5 +334,5 @@ extension String {
         byteCount: 128,
         receivedAt: Date()
     )
-    return MessageLogView(messages: [msg], connectionManager: ConnectionManager.shared)
+    return MessageLogView(messages: [msg], connectionManager: ConnectionManager())
 }

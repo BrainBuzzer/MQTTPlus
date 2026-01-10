@@ -122,8 +122,11 @@ extension RedisClient: MessageQueueClient {
             commandExecutor = executor
 
             // AUTH (optional)
-            if let password = endpoint.password, !password.isEmpty {
-                if let username = endpoint.username, !username.isEmpty {
+            let authUsername = config.username ?? endpoint.username
+            let authPassword = config.password ?? endpoint.password
+
+            if let password = authPassword, !password.isEmpty {
+                if let username = authUsername, !username.isEmpty {
                     _ = try await executor.execute([.string("AUTH"), .string(username), .string(password)])
                 } else {
                     _ = try await executor.execute([.string("AUTH"), .string(password)])
@@ -229,6 +232,58 @@ extension RedisClient: MessageQueueClient {
         case .pattern:
             try await sendPubSubOnly([.string("PUNSUBSCRIBE"), .string(normalized)])
         }
+    }
+}
+
+// MARK: - Redis Metrics
+
+extension RedisClient {
+    public func fetchServerMetrics() async throws -> RedisMetrics {
+        guard state == .connected, let executor = commandExecutor else {
+            throw MQError.notConnected
+        }
+
+        let reply = try await executor.execute([.string("INFO")])
+        guard let infoString = reply.asString else {
+            throw MQError.providerError("Unexpected INFO response")
+        }
+
+        let info = parseInfo(infoString)
+
+        let usedMemoryBytes = UInt64(info["used_memory"] ?? "") ?? 0
+        let usedMemoryHuman = info["used_memory_human"] ?? ByteCountFormatter.string(fromByteCount: Int64(usedMemoryBytes), countStyle: .binary)
+        let instantaneousOpsPerSec = Int(info["instantaneous_ops_per_sec"] ?? "") ?? 0
+        let connectedClients = Int(info["connected_clients"] ?? "") ?? 0
+        let memFragmentationRatio = Double(info["mem_fragmentation_ratio"] ?? "") ?? 1.0
+        let totalNetInputBytes = UInt64(info["total_net_input_bytes"] ?? "") ?? 0
+
+        return RedisMetrics(
+            usedMemoryHuman: usedMemoryHuman,
+            usedMemoryBytes: usedMemoryBytes,
+            instantaneousOpsPerSec: instantaneousOpsPerSec,
+            connectedClients: connectedClients,
+            memFragmentationRatio: memFragmentationRatio,
+            totalNetInputBytes: totalNetInputBytes
+        )
+    }
+
+    private func parseInfo(_ info: String) -> [String: String] {
+        var result: [String: String] = [:]
+        result.reserveCapacity(64)
+
+        for line in info.split(whereSeparator: \.isNewline) {
+            guard !line.isEmpty else { continue }
+            if line.first == "#" { continue }
+
+            let parts = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { continue }
+
+            let key = String(parts[0])
+            let value = String(parts[1])
+            result[key] = value
+        }
+
+        return result
     }
 }
 

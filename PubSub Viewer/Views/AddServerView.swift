@@ -6,23 +6,24 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct AddServerView: View {
     @Environment(\.managedObjectContext) private var viewContext
     @Environment(\.dismiss) private var dismiss
     
-    @State private var selectedProvider: MQProviderKind = .nats
+    @ObservedObject private var registry = MQProviderRegistry.shared
+    @State private var selectedProviderId: String = "nats"
     @State private var name = ""
     @State private var host = "localhost"
     @State private var port = ""
     @State private var user = ""
     @State private var password = ""
     @State private var useTLS = false
-    
-    // Default ports
-    private let natsDefaultPort = "4222"
-    private let redisDefaultPort = "6379"
-    private let kafkaDefaultPort = "9092"
+
+    private var selectedProviderInfo: MQProviderInfo? {
+        registry.providerInfo(for: selectedProviderId)
+    }
     
     var body: some View {
         HStack(spacing: 0) {
@@ -35,38 +36,13 @@ struct AddServerView: View {
                 
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: 16) {
-                        ProviderOption(
-                            provider: .nats,
-                            isSelected: selectedProvider == .nats,
-                            action: { 
-                                selectedProvider = .nats
-                                if port.isEmpty || port == redisDefaultPort || port == kafkaDefaultPort {
-                                    port = natsDefaultPort
-                                }
-                            }
-                        )
-                        
-                        ProviderOption(
-                            provider: .redis,
-                            isSelected: selectedProvider == .redis,
-                            action: { 
-                                selectedProvider = .redis 
-                                if port.isEmpty || port == natsDefaultPort || port == kafkaDefaultPort {
-                                    port = redisDefaultPort
-                                }
-                            }
-                        )
-                        
-                        ProviderOption(
-                            provider: .kafka,
-                            isSelected: selectedProvider == .kafka,
-                            action: { 
-                                selectedProvider = .kafka
-                                if port.isEmpty || port == natsDefaultPort || port == redisDefaultPort {
-                                    port = kafkaDefaultPort
-                                }
-                            }
-                        )
+                        ForEach(registry.availableProviders) { provider in
+                            ProviderOption(
+                                info: provider,
+                                isSelected: selectedProviderId == provider.id,
+                                action: { selectProvider(provider) }
+                            )
+                        }
                     }
                     .padding(.horizontal)
                 }
@@ -80,7 +56,7 @@ struct AddServerView: View {
             VStack(spacing: 0) {
                 // Header
                 HStack {
-                    Text("\(selectedProvider.displayName) Connection")
+                    Text("\(selectedProviderInfo?.displayName ?? "Broker") Connection")
                         .font(.headline)
                     Spacer()
                 }
@@ -181,16 +157,46 @@ struct AddServerView: View {
         }
         .frame(width: 650, height: 450)
         .onAppear {
+            if registry.availableProviders.isEmpty {
+                registerAllProviders()
+            }
             if port.isEmpty {
-                port = natsDefaultPort
+                port = String(selectedProviderInfo?.defaultPort ?? 4222)
             }
         }
     }
     
+    private func selectProvider(_ provider: MQProviderInfo) {
+        let previousDefaultPort = selectedProviderInfo?.defaultPort
+
+        selectedProviderId = provider.id
+
+        if port.isEmpty || (previousDefaultPort != nil && port == String(previousDefaultPort!)) {
+            port = String(provider.defaultPort)
+        }
+    }
+
     private func addServer() {
         let newServer = ServerConfig(context: viewContext)
-        newServer.id = UUID()
-        newServer.name = name.isEmpty ? "\(selectedProvider.displayName) @ \(host)" : name
+        let serverId = UUID()
+        newServer.id = serverId
+        newServer.name = name.isEmpty ? "\(selectedProviderInfo?.displayName ?? "Broker") @ \(host)" : name
+        newServer.providerId = selectedProviderId
+        newServer.host = host
+        newServer.setValue(Int32(Int(port) ?? (selectedProviderInfo?.defaultPort ?? 0)), forKey: "port")
+        newServer.setValue(useTLS, forKey: "useTLS")
+        newServer.username = user.isEmpty ? nil : user
+
+        if !password.isEmpty {
+            let key = KeychainService.key(for: serverId, kind: .password)
+            do {
+                try KeychainService.storeString(password, key: key)
+                newServer.setValue(key, forKey: "passwordKeychainId")
+            } catch {
+                print("[AddServerView] Failed to store password in Keychain: \(error)")
+            }
+        }
+
         newServer.urlString = constructURL()
         newServer.createdAt = Date()
         
@@ -199,39 +205,29 @@ struct AddServerView: View {
     }
     
     private var portPlaceholder: String {
-        switch selectedProvider {
-        case .nats: return "4222"
-        case .redis: return "6379"
-        case .kafka: return "9092"
-        }
+        String(selectedProviderInfo?.defaultPort ?? 0)
     }
     
     private func constructURL() -> String {
-        var scheme: String
-        switch selectedProvider {
-        case .nats:
-            scheme = useTLS ? "tls" : "nats"
-        case .redis:
-            scheme = useTLS ? "rediss" : "redis"
-        case .kafka:
-            scheme = useTLS ? "kafkas" : "kafka"
-        }
-        
-        var userInfo = ""
-        if !user.isEmpty || !password.isEmpty {
-            if !password.isEmpty {
-                userInfo = "\(user):\(password)@"
-            } else {
-                userInfo = "\(user)@"
+        let scheme: String = {
+            switch selectedProviderId {
+            case "nats":
+                return useTLS ? "tls" : "nats"
+            case "redis":
+                return "redis"
+            case "kafka":
+                return "kafka"
+            default:
+                return selectedProviderInfo?.urlScheme ?? "nats"
             }
-        }
-        
-        return "\(scheme)://\(userInfo)\(host):\(port)"
+        }()
+
+        return "\(scheme)://\(host):\(port)"
     }
 }
 
 struct ProviderOption: View {
-    let provider: MQProviderKind
+    let info: MQProviderInfo
     let isSelected: Bool
     let action: () -> Void
     
@@ -244,7 +240,7 @@ struct ProviderOption: View {
                     .frame(width: 32, height: 32)
                     .foregroundColor(isSelected ? .white : .primary)
                 
-                Text(provider.displayName)
+                Text(info.displayName)
                     .font(.caption)
                     .foregroundColor(isSelected ? .white : .primary)
             }
@@ -260,10 +256,6 @@ struct ProviderOption: View {
     }
     
     private var iconName: String {
-        switch provider {
-        case .nats: return "antenna.radiowaves.left.and.right"
-        case .redis: return "cylinder.fill"
-        case .kafka: return "arrow.triangle.pull"
-        }
+        info.iconName
     }
 }

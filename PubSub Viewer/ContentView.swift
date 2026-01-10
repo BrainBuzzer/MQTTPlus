@@ -6,9 +6,12 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct ContentView: View {
+    @Environment(\.managedObjectContext) private var viewContext
     @StateObject private var tabManager = TabManager()
+    @State private var didBootstrap = false
     
     var body: some View {
         NavigationSplitView {
@@ -17,6 +20,11 @@ struct ContentView: View {
             SessionTabView(tabManager: tabManager)
         }
         .frame(minWidth: 900, minHeight: 600)
+        .task {
+            guard !didBootstrap else { return }
+            didBootstrap = true
+            await AppBootstrapper.runIfNeeded(viewContext: viewContext)
+        }
     }
 }
 

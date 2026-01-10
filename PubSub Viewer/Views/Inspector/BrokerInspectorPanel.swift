@@ -56,11 +56,24 @@ struct BrokerInspectorPanel: View {
     
     @ViewBuilder
     private var connectionStatusBadge: some View {
+        let (color, text): (Color, String) = {
+            switch connectionManager.connectionState {
+            case .connected:
+                return (.green, "Live")
+            case .connecting:
+                return (.orange, "Connecting")
+            case .error:
+                return (.red, "Error")
+            case .disconnected:
+                return (.gray, "Offline")
+            }
+        }()
+
         HStack(spacing: 4) {
             Circle()
-                .fill(connectionManager.connectionState == .connected ? .green : .orange)
+                .fill(color)
                 .frame(width: 6, height: 6)
-            Text(connectionManager.connectionState == .connected ? "Live" : "—")
+            Text(text)
                 .font(.caption2)
         }
         .padding(.horizontal, 6)
@@ -97,9 +110,8 @@ struct BrokerInspectorPanel: View {
     
     @ViewBuilder
     private var inspectorContent: some View {
-        if connectionManager.connectionState != .connected {
-            disconnectedView
-        } else {
+        switch connectionManager.connectionState {
+        case .connected:
             switch metricsProvider.brokerType {
             case .nats:
                 NatsInspectorView(
@@ -125,7 +137,47 @@ struct BrokerInspectorPanel: View {
                     urpHistory: metricsProvider.kafkaUrpHistory.points
                 )
             }
+        case .connecting:
+            connectingView
+        case .error(let message):
+            errorView(message: message)
+        case .disconnected:
+            disconnectedView
         }
+    }
+
+    private var connectingView: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Connecting…")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text("Waiting for broker to respond")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 100)
+        .padding()
+    }
+
+    private func errorView(message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.largeTitle)
+                .foregroundStyle(.red)
+            Text("Connection Error")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .textSelection(.enabled)
+                .frame(maxWidth: 420)
+        }
+        .frame(maxWidth: .infinity, minHeight: 100)
+        .padding()
     }
     
     private var disconnectedView: some View {
@@ -148,6 +200,6 @@ struct BrokerInspectorPanel: View {
 // MARK: - Preview
 
 #Preview("Broker Inspector Panel") {
-    BrokerInspectorPanel(connectionManager: ConnectionManager.shared)
+    BrokerInspectorPanel(connectionManager: ConnectionManager())
         .frame(width: 450, height: 350)
 }

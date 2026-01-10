@@ -8,13 +8,13 @@
 import SwiftUI
 
 struct StreamCreatorSheet: View {
-    @ObservedObject var jetStreamManager: JetStreamManager
+    @ObservedObject var connectionManager: ConnectionManager
     @Binding var isPresented: Bool
     
     @State private var name = ""
     @State private var subjects = ""
-    @State private var retention: RetentionPolicy = .limits
-    @State private var storage: StorageType = .file
+    @State private var retention: MQRetentionPolicy = .limits
+    @State private var storage: MQStorageType = .file
     @State private var maxAge: String = ""
     @State private var maxBytes: String = ""
     @State private var isCreating = false
@@ -45,13 +45,13 @@ struct StreamCreatorSheet: View {
                 
                 Section("Configuration") {
                 Picker("Retention Policy", selection: $retention) {
-                    ForEach([RetentionPolicy.limits, .interest, .workQueue], id: \.self) { policy in
+                    ForEach(MQRetentionPolicy.allCases, id: \.self) { policy in
                         Text(policy.rawValue).tag(policy)
                     }
                 }
                 
                 Picker("Storage Type", selection: $storage) {
-                    ForEach([StorageType.file, .memory], id: \.self) { type in
+                    ForEach(MQStorageType.allCases, id: \.self) { type in
                         Text(type.rawValue).tag(type)
                     }
                 }
@@ -100,7 +100,7 @@ struct StreamCreatorSheet: View {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         
-        let config = StreamConfig(
+        let config = MQStreamConfig(
             name: name,
             subjects: subjectList,
             retention: retention,
@@ -111,7 +111,7 @@ struct StreamCreatorSheet: View {
         
         Task {
             do {
-                try await jetStreamManager.createStream(config: config)
+                _ = try await connectionManager.createStream(config)
                 await MainActor.run {
                     isPresented = false
                 }
@@ -126,14 +126,14 @@ struct StreamCreatorSheet: View {
 }
 
 struct ConsumerCreatorSheet: View {
-    @ObservedObject var jetStreamManager: JetStreamManager
+    @ObservedObject var connectionManager: ConnectionManager
     let streamName: String
     @Binding var isPresented: Bool
     
     @State private var name = ""
     @State private var durable = true
-    @State private var deliverPolicy: DeliverPolicy = .all
-    @State private var ackPolicy: AckPolicy = .explicit
+    @State private var deliverPolicy: MQDeliverPolicy = .all
+    @State private var ackPolicy: MQAckPolicy = .explicit
     @State private var ackWait: String = "30"
     @State private var filterSubject = ""
     @State private var isCreating = false
@@ -170,14 +170,14 @@ struct ConsumerCreatorSheet: View {
                 
                 Section("Delivery Configuration") {
                     Picker("Deliver Policy", selection: $deliverPolicy) {
-                        ForEach([DeliverPolicy.all, .last, .new], id: \.self) { policy in
+                        ForEach([MQDeliverPolicy.all, .last, .new], id: \.self) { policy in
                             Text(policy.rawValue).tag(policy)
                         }
                     }
                     .help("All: from beginning, Last: last message, New: new messages only")
                     
                     Picker("Ack Policy", selection: $ackPolicy) {
-                        ForEach([AckPolicy.explicit, .all, .none], id: \.self) { policy in
+                        ForEach([MQAckPolicy.explicit, .all, .none], id: \.self) { policy in
                             Text(policy.rawValue).tag(policy)
                         }
                     }
@@ -223,18 +223,19 @@ struct ConsumerCreatorSheet: View {
         errorMessage = nil
         isCreating = true
         
-        let config = ConsumerConfig(
+        let config = MQConsumerConfig(
             name: name,
             durable: durable,
             deliverPolicy: deliverPolicy,
             ackPolicy: ackPolicy,
+            replayPolicy: .instant,
             ackWait: Double(ackWait) ?? 30,
             filterSubject: filterSubject.isEmpty ? nil : filterSubject
         )
         
         Task {
             do {
-                try await jetStreamManager.createConsumer(streamName: streamName, config: config)
+                _ = try await connectionManager.createConsumer(stream: streamName, config: config)
                 await MainActor.run {
                     isPresented = false
                 }
@@ -249,14 +250,14 @@ struct ConsumerCreatorSheet: View {
 }
 
 struct JetStreamPublishSheet: View {
-    @ObservedObject var jetStreamManager: JetStreamManager
+    @ObservedObject var connectionManager: ConnectionManager
     let streamName: String
     @Binding var isPresented: Bool
     
     @State private var subject = ""
     @State private var payload = ""
     @State private var isPublishing = false
-    @State private var publishResult: PublishAck?
+    @State private var publishResult: MQPublishAck?
     @State private var errorMessage: String?
     
     var body: some View {
@@ -341,7 +342,7 @@ struct JetStreamPublishSheet: View {
         
         Task {
             do {
-                let ack = try await jetStreamManager.publish(subject: subject, payload: payload)
+                let ack = try await connectionManager.publishToJetStream(to: subject, payload: payload)
                 await MainActor.run {
                     publishResult = ack
                     isPublishing = false
