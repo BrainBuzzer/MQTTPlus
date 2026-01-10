@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ConsoleView: View {
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var connectionManager: ConnectionManager
     @State private var autoScroll = true
     
     var body: some View {
@@ -25,7 +25,7 @@ struct ConsoleView: View {
                     .font(.caption)
                     .controlSize(.mini)
                 
-                Button(action: { natsManager.logs.removeAll() }) {
+                Button(action: { connectionManager.logs.removeAll() }) {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.plain)
@@ -40,7 +40,7 @@ struct ConsoleView: View {
             // Log List
             ScrollViewReader { proxy in
                 List {
-                    ForEach(natsManager.logs) { log in
+                    ForEach(connectionManager.logs) { log in
                         HStack(alignment: .top, spacing: 8) {
                             Text(log.timestamp, style: .time)
                                 .font(.caption2)
@@ -63,8 +63,8 @@ struct ConsoleView: View {
                     }
                 }
                 .listStyle(.plain)
-                .onChange(of: natsManager.logs) {
-                    if autoScroll, let lastLog = natsManager.logs.last {
+                .onChange(of: connectionManager.logs) {
+                    if autoScroll, let lastLog = connectionManager.logs.last {
                         withAnimation {
                             proxy.scrollTo(lastLog.id, anchor: .bottom)
                         }
@@ -75,7 +75,7 @@ struct ConsoleView: View {
         .background(Color(nsColor: .textBackgroundColor))
     }
     
-    private func color(for level: NatsManager.LogEntry.LogLevel) -> Color {
+    private func color(for level: ConnectionManager.LogEntry.LogLevel) -> Color {
         switch level {
         case .info: return .blue
         case .warning: return .orange
@@ -85,9 +85,9 @@ struct ConsoleView: View {
 }
 
 #Preview {
-    let manager = NatsManager.shared
+    let manager = ConnectionManager.shared
     manager.log("Test Info Log", level: .info)
     manager.log("Test Warning Log", level: .warning)
     manager.log("Test Error Log", level: .error)
-    return ConsoleView(natsManager: manager)
+    return ConsoleView(connectionManager: manager)
 }

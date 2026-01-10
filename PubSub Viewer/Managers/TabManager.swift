@@ -18,7 +18,7 @@ class TabManager: ObservableObject {
         return sessions.first(where: { $0.id == id })
     }
     
-    func openTab(for server: ServerConfig, mode: NatsMode = .core) {
+    func openTab(for server: ServerConfig, mode: ConnectionMode = .core) {
         // Check if already open
         if let existingSession = sessions.first(where: { $0.serverID == server.id }) {
             selectedSessionID = existingSession.id
@@ -32,7 +32,7 @@ class TabManager: ObservableObject {
         
         // Auto-connect
         Task {
-            await newSession.natsManager.connect(
+            await newSession.connectionManager.connect(
                 to: server.urlString ?? "",
                 serverName: server.name ?? "Unknown",
                 serverID: server.id,
@@ -46,7 +46,7 @@ class TabManager: ObservableObject {
         let session = sessions[sessionIndex]
         
         // Disconnect
-        session.natsManager.disconnect()
+        session.connectionManager.disconnect()
         
         // Remove
         sessions.remove(at: sessionIndex)

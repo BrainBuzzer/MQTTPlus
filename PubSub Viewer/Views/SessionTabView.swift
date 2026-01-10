@@ -38,7 +38,7 @@ struct SessionTabView: View {
             
             // Content
             if let selectedSession = tabManager.selectedSession {
-                ActiveSessionView(natsManager: selectedSession.natsManager)
+                ActiveSessionView(connectionManager: selectedSession.connectionManager)
                     .id(selectedSession.id) // Force recreate if ID changes (though ID is constant)
             } else {
                 WelcomeView(connectionState: .disconnected)
@@ -54,7 +54,7 @@ struct SessionTabItem: View {
     let onSelect: () -> Void
     
     // Observe connection state to show status colors in the tab
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var connectionManager: ConnectionManager
     @Environment(\.colorScheme) var colorScheme
     
     init(session: Session, isSelected: Bool, onClose: @escaping () -> Void, onSelect: @escaping () -> Void) {
@@ -62,12 +62,12 @@ struct SessionTabItem: View {
         self.isSelected = isSelected
         self.onClose = onClose
         self.onSelect = onSelect
-        self.natsManager = session.natsManager
+        self.connectionManager = session.connectionManager
     }
     
     var body: some View {
         HStack(spacing: 6) {
-            StatusDot(state: natsManager.connectionState)
+            StatusDot(state: connectionManager.connectionState)
             
             Text(session.name)
                 .font(.callout)
@@ -101,7 +101,7 @@ struct SessionTabItem: View {
 }
 
 struct StatusDot: View {
-    let state: NatsConnectionState
+    let state: ConnectionState
     
     var color: Color {
         switch state {

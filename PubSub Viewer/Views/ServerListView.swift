@@ -65,7 +65,7 @@ struct ServerRowView: View {
     let server: ServerConfig
     @ObservedObject var tabManager: TabManager
     @State private var showingModeSelector = false
-    @State private var selectedMode: NatsMode = .core
+    @State private var selectedMode: ConnectionMode = .core
 
     private var provider: MQProviderKind? {
         MQProviderKind(urlString: server.urlString ?? "")
@@ -122,6 +122,8 @@ struct ServerRowView: View {
             return "antenna.radiowaves.left.and.right"
         case .redis:
             return "cylinder.fill"
+        case .kafka:
+            return "arrow.triangle.pull"
         case nil:
             return "server.rack"
         }

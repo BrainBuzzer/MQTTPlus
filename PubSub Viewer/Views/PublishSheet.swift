@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct PublishSheet: View {
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var connectionManager: ConnectionManager
     @Binding var isPresented: Bool
     
     @State private var subject = ""
@@ -120,11 +120,11 @@ struct PublishSheet: View {
     }
     
     private func publishMessage() {
-        natsManager.publish(to: subject, payload: payload)
+        connectionManager.publish(to: subject, payload: payload)
         isPresented = false
     }
 }
 
 #Preview {
-    PublishSheet(natsManager: NatsManager.shared, isPresented: .constant(true))
+    PublishSheet(connectionManager: ConnectionManager.shared, isPresented: .constant(true))
 }

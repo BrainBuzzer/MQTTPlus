@@ -3,8 +3,8 @@ import SwiftUI
 // MARK: - Mode Selector
 
 struct ModeSelectorView: View {
-    @Binding var selectedMode: NatsMode
-    let onConnect: (NatsMode) -> Void
+    @Binding var selectedMode: ConnectionMode
+    let onConnect: (ConnectionMode) -> Void
     
     var body: some View {
         VStack(spacing: 16) {
@@ -12,7 +12,7 @@ struct ModeSelectorView: View {
                 .font(.headline)
             
             VStack(alignment: .leading, spacing: 12) {
-                ForEach(NatsMode.allCases, id: \.self) { mode in
+                ForEach(ConnectionMode.allCases, id: \.self) { mode in
                     Button(action: {
                         selectedMode = mode
                         onConnect(mode)

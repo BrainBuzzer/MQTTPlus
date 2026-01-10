@@ -21,7 +21,7 @@ struct ContentView: View {
 }
 
 struct WelcomeView: View {
-    let connectionState: NatsConnectionState
+    let connectionState: ConnectionState
     
     var body: some View {
         VStack(spacing: 20) {
@@ -50,10 +50,10 @@ struct WelcomeView: View {
 }
 
 struct StatusBar: View {
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var connectionManager: ConnectionManager
     
     var statusColor: Color {
-        switch natsManager.connectionState {
+        switch connectionManager.connectionState {
         case .connected: return .green
         case .connecting: return .orange
         case .error: return .red
@@ -62,9 +62,9 @@ struct StatusBar: View {
     }
     
     var statusText: String {
-        switch natsManager.connectionState {
+        switch connectionManager.connectionState {
         case .connected:
-            return "Connected to \(natsManager.currentServerName ?? "server")"
+            return "Connected to \(connectionManager.currentServerName ?? "server")"
         case .connecting:
             return "Connecting..."
         case .error(let msg):
@@ -85,15 +85,15 @@ struct StatusBar: View {
             
             Spacer()
             
-            if natsManager.connectionState.isConnected {
-                Text("\(natsManager.subscribedSubjects.count) subscriptions")
+            if connectionManager.connectionState.isConnected {
+                Text("\(connectionManager.subscribedSubjects.count) subscriptions")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
                 Text("•")
                     .foregroundColor(.secondary)
                 
-                Text("\(natsManager.messages.count) messages")
+                Text("\(connectionManager.messages.count) messages")
                     .font(.caption)
                     .foregroundColor(.secondary)
                 
@@ -101,17 +101,17 @@ struct StatusBar: View {
                     .foregroundColor(.secondary)
                 
                 // Mode badge
-                Text(natsManager.mode.description)
+                Text(connectionManager.mode.description)
                     .font(.caption)
                     .fontWeight(.medium)
-                    .foregroundColor(natsManager.mode == .jetstream ? .white : .blue)
+                    .foregroundColor(connectionManager.mode == .jetstream ? .white : .blue)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(natsManager.mode == .jetstream ? Color.purple : Color.blue.opacity(0.2))
+                    .background(connectionManager.mode == .jetstream ? Color.purple : Color.blue.opacity(0.2))
                     .cornerRadius(4)
                 
                 Button("Disconnect") {
-                    natsManager.disconnect()
+                    connectionManager.disconnect()
                 }
                 .buttonStyle(.borderless)
                 .font(.caption)

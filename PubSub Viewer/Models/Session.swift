@@ -14,20 +14,20 @@ class Session: Identifiable, ObservableObject {
     let name: String
     let serverID: UUID? // Optional, in case we have ad-hoc connections later
     
-    @Published var natsManager: NatsManager
+    @Published var connectionManager: ConnectionManager
     
     init(server: ServerConfig) {
         self.id = UUID()
         self.name = server.name ?? "Unknown Server"
         self.serverID = server.id
-        self.natsManager = NatsManager() // New instance for this session
+        self.connectionManager = ConnectionManager() // New instance for this session
     }
     
     // For ad-hoc or testing
-    init(name: String, natsManager: NatsManager? = nil) {
+    init(name: String, connectionManager: ConnectionManager? = nil) {
         self.id = UUID()
         self.name = name
         self.serverID = nil
-        self.natsManager = natsManager ?? NatsManager()
+        self.connectionManager = connectionManager ?? ConnectionManager()
     }
 }

@@ -17,7 +17,8 @@ PubSub Viewer is a macOS application for viewing and managing messages across mu
 
 - **Providers/** - MQ-specific implementations
   - `NATS/` - NATS provider using C FFI (cnats library)
-  - Future: Kafka, RabbitMQ, Redis Streams, MQTT
+  - `Kafka/` - Kafka provider using pure Swift (Kafka wire protocol)
+  - `Redis/` - Redis provider using pure Swift (RESP protocol)
 
 - **Views/** - SwiftUI views for the UI
   - `SessionTabView.swift` - Custom tab bar implementation
@@ -28,8 +29,8 @@ PubSub Viewer is a macOS application for viewing and managing messages across mu
 The application uses a multi-tab architecture:
 
 - **TabManager** (`Managers/TabManager.swift`): Singleton-like owner of all open sessions. Handles opening, closing, and selecting tabs.
-- **Session** (`Models/Session.swift`): Represents a single active connection tab. Owns its own `NatsManager` instance.
-- **NatsManager**: Now instance-based (not singleton) to allow multiple simultaneous connections.
+- **Session** (`Models/Session.swift`): Represents a single active connection tab. Owns its own `ConnectionManager` instance.
+- **ConnectionManager**: Instance-based (not singleton) to allow multiple simultaneous connections to any provider.
 
 ### C FFI Integration
 

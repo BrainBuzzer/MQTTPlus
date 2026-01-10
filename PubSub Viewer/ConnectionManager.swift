@@ -1,5 +1,5 @@
 //
-//  NatsManager.swift
+//  ConnectionManager.swift
 //  PubSub Viewer
 //
 //  Created by Aditya on 10/01/26.
@@ -14,12 +14,15 @@ import Combine
 enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
     case nats
     case redis
+    case kafka
 
     init?(urlString: String) {
         if urlString.hasPrefix("nats://") || urlString.hasPrefix("tls://") {
             self = .nats
         } else if urlString.hasPrefix("redis://") || urlString.hasPrefix("rediss://") {
             self = .redis
+        } else if urlString.hasPrefix("kafka://") || urlString.hasPrefix("kafkas://") {
+            self = .kafka
         } else {
             return nil
         }
@@ -29,6 +32,7 @@ enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
         switch self {
         case .nats: return "NATS"
         case .redis: return "Redis"
+        case .kafka: return "Kafka"
         }
     }
 
@@ -36,6 +40,15 @@ enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
         switch self {
         case .nats: return ">"
         case .redis: return "*"
+        case .kafka: return "*"  // Wildcard for Kafka topic matching
+        }
+    }
+
+    var defaultPort: Int {
+        switch self {
+        case .nats: return 4222
+        case .redis: return 6379
+        case .kafka: return 9092
         }
     }
 }
@@ -72,7 +85,7 @@ struct ReceivedMessage: Identifiable, Hashable {
 }
 
 /// Connection state for the NATS client
-enum NatsConnectionState: Equatable {
+enum ConnectionState: Equatable {
     case disconnected
     case connecting
     case connected
@@ -99,10 +112,10 @@ enum NatsConnectionState: Equatable {
 
 /// Manager class for NATS connections using C FFI
 @MainActor
-class NatsManager: ObservableObject {
-    static let shared = NatsManager()
+class ConnectionManager: ObservableObject {
+    static let shared = ConnectionManager()
 
-    @Published var connectionState: NatsConnectionState = .disconnected
+    @Published var connectionState: ConnectionState = .disconnected
     @Published var subscribedSubjects: [String] = []
     @Published var messages: [ReceivedMessage] = []
     @Published var currentServerName: String?
@@ -110,7 +123,7 @@ class NatsManager: ObservableObject {
     @Published var logs: [LogEntry] = []
     
     // JetStream support
-    @Published var mode: NatsMode = .core
+    @Published var mode: ConnectionMode = .core
     @Published var jetStreamManager: JetStreamManager?
     
     // Streams and Consumers (JetStream)
@@ -139,7 +152,7 @@ class NatsManager: ObservableObject {
     
     // MARK: - Connection Management
     
-    func connect(to urlString: String, serverName: String, serverID: UUID? = nil, mode: NatsMode = .core) async {
+    func connect(to urlString: String, serverName: String, serverID: UUID? = nil, mode: ConnectionMode = .core) async {
         guard connectionState != .connecting else { return }
 
         log("Initiating connection to \(serverName) (\(urlString))...", level: .info)
@@ -185,6 +198,8 @@ class NatsManager: ObservableObject {
                     return NatsCClient(config: config)
                 case .redis:
                     return RedisClient(config: config)
+                case .kafka:
+                    return KafkaClient(config: config)
                 }
             }()
             self.client = mqClient
@@ -193,7 +208,7 @@ class NatsManager: ObservableObject {
             mqClient.statePublisher
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] state in
-                    self?.connectionState = NatsConnectionState(from: state)
+                    self?.connectionState = ConnectionState(from: state)
                 }
                 .store(in: &cancellables)
 
@@ -205,6 +220,24 @@ class NatsManager: ObservableObject {
 
             // Auto-subscribe to firehose
             subscribeToFirehose()
+
+            // Provider-specific post-connect actions
+            if provider == .kafka {
+                // For Kafka, list all topics and add them as "subscribed subjects" for visibility
+                if let kafkaClient = mqClient as? StreamingClient {
+                    do {
+                        let topics = try await kafkaClient.listStreams()
+                        for topic in topics {
+                            if !subscribedSubjects.contains(topic.name) {
+                                subscribedSubjects.append(topic.name)
+                            }
+                        }
+                        log("Found \(topics.count) Kafka topics", level: .info)
+                    } catch {
+                        log("Failed to list Kafka topics: \(error.localizedDescription)", level: .warning)
+                    }
+                }
+            }
 
             // Initialize JetStream if in JetStream mode (NATS only)
             if provider == .nats, self.mode == .jetstream {
@@ -219,7 +252,7 @@ class NatsManager: ObservableObject {
             self.client = nil
             connectionState = .error(error.localizedDescription)
             log("Connection failed: \(error.localizedDescription)", level: .error)
-            print("[NatsManager] Connection error: \(error)")
+            print("[ConnectionManager] Connection error: \(error)")
         }
     }
     
@@ -245,7 +278,7 @@ class NatsManager: ObservableObject {
         jetStreamManager = nil
         cancellables.removeAll()
         log("Disconnected", level: .info)
-        print("[NatsManager] Disconnected")
+        print("[ConnectionManager] Disconnected")
     }
     
     // MARK: - Subscription Management
@@ -273,7 +306,7 @@ class NatsManager: ObservableObject {
         }
 
         log("Subscribed to Firehose (\(pattern))", level: .info)
-        print("[NatsManager] Subscribed to Firehose (\(pattern))")
+        print("[ConnectionManager] Subscribed to Firehose (\(pattern))")
     }
     
     func subscribe(to subject: String) {
@@ -281,14 +314,14 @@ class NatsManager: ObservableObject {
         guard !subscribedSubjects.contains(subject) else { return }
         subscribedSubjects.append(subject)
         log("Added local filter: \(subject)", level: .info)
-        print("[NatsManager] Added filter: \(subject)")
+        print("[ConnectionManager] Added filter: \(subject)")
     }
     
     func unsubscribe(from subject: String) {
         // Just remove from tracking
         subscribedSubjects.removeAll { $0 == subject }
         log("Removed local filter: \(subject)", level: .info)
-        print("[NatsManager] Removed filter: \(subject)")
+        print("[ConnectionManager] Removed filter: \(subject)")
     }
     
     // MARK: - Publishing
@@ -311,7 +344,7 @@ class NatsManager: ObservableObject {
             }
         }
         
-        print("[NatsManager] Published to \(subject): \(payload)")
+        print("[ConnectionManager] Published to \(subject): \(payload)")
     }
     
     // MARK: - JetStream Operations

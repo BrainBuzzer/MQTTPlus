@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct JetStreamView: View {
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var connectionManager: ConnectionManager
     @State private var selectedStream: StreamInfo?
     @State private var selectedConsumer: ConsumerInfo?
     @State private var showingStreamCreator = false
@@ -39,7 +39,7 @@ struct JetStreamView: View {
                     Divider()
                     
                     // Stream list
-                    if let jetStreamManager = natsManager.jetStreamManager {
+                    if let jetStreamManager = connectionManager.jetStreamManager {
                         List(jetStreamManager.streams, selection: $selectedStream) { stream in
                             StreamRowView(stream: stream)
                                 .tag(stream)
@@ -85,7 +85,7 @@ struct JetStreamView: View {
                     Divider()
                     
                     if let stream = selectedStream,
-                       let jetStreamManager = natsManager.jetStreamManager {
+                       let jetStreamManager = connectionManager.jetStreamManager {
                         let consumers = jetStreamManager.consumers.filter { $0.streamName == stream.name }
                         
                         if consumers.isEmpty {
@@ -138,7 +138,7 @@ struct JetStreamView: View {
                             }
                         }
                         
-                        Button(action: { natsManager.clearMessages() }) {
+                        Button(action: { connectionManager.clearMessages() }) {
                             Label("Clear", systemImage: "trash")
                         }
                     }
@@ -150,7 +150,7 @@ struct JetStreamView: View {
                     
                     // Message list with JetStream controls
                     if selectedConsumer != nil {
-                        JetStreamMessageListView(natsManager: natsManager)
+                        JetStreamMessageListView(connectionManager: connectionManager)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ContentUnavailableView(
@@ -166,7 +166,7 @@ struct JetStreamView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .sheet(isPresented: $showingStreamCreator) {
-            if let jetStreamManager = natsManager.jetStreamManager {
+            if let jetStreamManager = connectionManager.jetStreamManager {
                 StreamCreatorSheet(
                     jetStreamManager: jetStreamManager,
                     isPresented: $showingStreamCreator
@@ -175,7 +175,7 @@ struct JetStreamView: View {
         }
         .sheet(isPresented: $showingConsumerCreator) {
             if let stream = selectedStream,
-               let jetStreamManager = natsManager.jetStreamManager {
+               let jetStreamManager = connectionManager.jetStreamManager {
                 ConsumerCreatorSheet(
                     jetStreamManager: jetStreamManager,
                     streamName: stream.name,
@@ -185,7 +185,7 @@ struct JetStreamView: View {
         }
         .sheet(isPresented: $showingPublishSheet) {
             if let stream = selectedStream,
-               let jetStreamManager = natsManager.jetStreamManager {
+               let jetStreamManager = connectionManager.jetStreamManager {
                 JetStreamPublishSheet(
                     jetStreamManager: jetStreamManager,
                     streamName: stream.name,
@@ -271,5 +271,5 @@ struct ConsumerRowView: View {
 }
 
 #Preview {
-    JetStreamView(natsManager: NatsManager.shared)
+    JetStreamView(connectionManager: ConnectionManager.shared)
 }

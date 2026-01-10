@@ -9,7 +9,7 @@ import SwiftUI
 
 struct MessageLogView: View {
     let messages: [ReceivedMessage]
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var connectionManager: ConnectionManager
     
     @State private var selectedMessage: ReceivedMessage?
     
@@ -320,5 +320,5 @@ extension String {
         byteCount: 128,
         receivedAt: Date()
     )
-    return MessageLogView(messages: [msg], natsManager: NatsManager.shared)
+    return MessageLogView(messages: [msg], connectionManager: ConnectionManager.shared)
 }

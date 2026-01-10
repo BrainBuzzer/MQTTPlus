@@ -10,7 +10,7 @@ import Foundation
 // MARK: - Connection Mode
 
 /// Connection mode selector for NATS
-enum NatsMode: String, Codable, CaseIterable {
+enum ConnectionMode: String, Codable, CaseIterable {
     case core = "Pub/Sub"
     case jetstream = "JetStream"
     

@@ -8,21 +8,21 @@
 import SwiftUI
 
 struct JetStreamMessageListView: View {
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var connectionManager: ConnectionManager
     @State private var selectedMessage: ReceivedMessage?
     
     var body: some View {
         HSplitView {
             // Left: Message list
             VStack(spacing: 0) {
-                if natsManager.messages.isEmpty {
+                if connectionManager.messages.isEmpty {
                     ContentUnavailableView(
                         "No Messages",
                         systemImage: "tray",
                         description: Text("Messages will appear here once received")
                     )
                 } else {
-                    List(natsManager.messages, selection: $selectedMessage) { message in
+                    List(connectionManager.messages, selection: $selectedMessage) { message in
                         JetStreamMessageRowView(message: message)
                             .tag(message)
                     }
@@ -34,7 +34,7 @@ struct JetStreamMessageListView: View {
             if let message = selectedMessage {
                 MessageDetailWithAckView(
                     message: message,
-                    jetStreamManager: natsManager.jetStreamManager
+                    jetStreamManager: connectionManager.jetStreamManager
                 )
             } else {
                 ContentUnavailableView(
@@ -285,5 +285,5 @@ struct MetadataRow: View {
 }
 
 #Preview {
-    JetStreamMessageListView(natsManager: NatsManager.shared)
+    JetStreamMessageListView(connectionManager: ConnectionManager.shared)
 }

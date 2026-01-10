@@ -22,6 +22,7 @@ struct AddServerView: View {
     // Default ports
     private let natsDefaultPort = "4222"
     private let redisDefaultPort = "6379"
+    private let kafkaDefaultPort = "9092"
     
     var body: some View {
         HStack(spacing: 0) {
@@ -39,7 +40,7 @@ struct AddServerView: View {
                             isSelected: selectedProvider == .nats,
                             action: { 
                                 selectedProvider = .nats
-                                if port.isEmpty || port == redisDefaultPort {
+                                if port.isEmpty || port == redisDefaultPort || port == kafkaDefaultPort {
                                     port = natsDefaultPort
                                 }
                             }
@@ -50,8 +51,19 @@ struct AddServerView: View {
                             isSelected: selectedProvider == .redis,
                             action: { 
                                 selectedProvider = .redis 
-                                if port.isEmpty || port == natsDefaultPort {
+                                if port.isEmpty || port == natsDefaultPort || port == kafkaDefaultPort {
                                     port = redisDefaultPort
+                                }
+                            }
+                        )
+                        
+                        ProviderOption(
+                            provider: .kafka,
+                            isSelected: selectedProvider == .kafka,
+                            action: { 
+                                selectedProvider = .kafka
+                                if port.isEmpty || port == natsDefaultPort || port == redisDefaultPort {
+                                    port = kafkaDefaultPort
                                 }
                             }
                         )
@@ -99,7 +111,7 @@ struct AddServerView: View {
                                         .foregroundColor(.secondary)
                                         .font(.caption)
                                     
-                                    TextField(selectedProvider == .nats ? "4222" : "6379", text: $port)
+                                    TextField(portPlaceholder, text: $port)
                                         .textFieldStyle(.roundedBorder)
                                         .frame(width: 60)
                                 }
@@ -186,10 +198,23 @@ struct AddServerView: View {
         dismiss()
     }
     
+    private var portPlaceholder: String {
+        switch selectedProvider {
+        case .nats: return "4222"
+        case .redis: return "6379"
+        case .kafka: return "9092"
+        }
+    }
+    
     private func constructURL() -> String {
-        var scheme = selectedProvider == .nats ? "nats" : "redis"
-        if useTLS {
-            scheme = selectedProvider == .nats ? "tls" : "rediss"
+        var scheme: String
+        switch selectedProvider {
+        case .nats:
+            scheme = useTLS ? "tls" : "nats"
+        case .redis:
+            scheme = useTLS ? "rediss" : "redis"
+        case .kafka:
+            scheme = useTLS ? "kafkas" : "kafka"
         }
         
         var userInfo = ""
@@ -238,6 +263,7 @@ struct ProviderOption: View {
         switch provider {
         case .nats: return "antenna.radiowaves.left.and.right"
         case .redis: return "cylinder.fill"
+        case .kafka: return "arrow.triangle.pull"
         }
     }
 }

@@ -9,7 +9,7 @@ import SwiftUI
 import Foundation
 
 struct ActiveSessionView: View {
-    @ObservedObject var natsManager: NatsManager
+    @ObservedObject var connectionManager: ConnectionManager
     
     @State private var newSubject = ""
     @State private var selectedSubject: String?
@@ -19,8 +19,8 @@ struct ActiveSessionView: View {
     
     var body: some View {
         // Show appropriate view based on connection mode
-        if natsManager.mode == .jetstream {
-            JetStreamView(natsManager: natsManager)
+        if connectionManager.mode == .jetstream {
+            JetStreamView(connectionManager: connectionManager)
         } else {
             coreNatsView
         }
@@ -85,7 +85,7 @@ struct ActiveSessionView: View {
                             }
                             .tag(">")
                             
-                            ForEach(natsManager.subscribedSubjects, id: \.self) { subject in
+                            ForEach(connectionManager.subscribedSubjects, id: \.self) { subject in
                                 HStack {
                                     Label(subject, systemImage: "tag")
                                     Spacer()
@@ -99,7 +99,7 @@ struct ActiveSessionView: View {
                                 .tag(subject)
                                 .contextMenu {
                                     Button(role: .destructive) {
-                                        natsManager.unsubscribe(from: subject)
+                                        connectionManager.unsubscribe(from: subject)
                                         if selectedSubject == subject {
                                             selectedSubject = nil
                                         }
@@ -142,7 +142,7 @@ struct ActiveSessionView: View {
                                 Label("Publish", systemImage: "paperplane.fill")
                             }
                             
-                            Button(action: { natsManager.clearMessages() }) {
+                            Button(action: { connectionManager.clearMessages() }) {
                                 Label("Clear", systemImage: "trash")
                             }
                         }
@@ -154,14 +154,14 @@ struct ActiveSessionView: View {
                         // Messages
                         MessageLogView(
                             messages: filteredMessages,
-                            natsManager: natsManager
+                            connectionManager: connectionManager
                         )
                     }
                     .frame(minHeight: 200, maxHeight: .infinity)
                     
                     // Bottom: Console Panel
                     if showingConsole {
-                        ConsoleView(natsManager: natsManager)
+                        ConsoleView(connectionManager: connectionManager)
                             .frame(minHeight: 100, maxHeight: 300)
                             .transition(.move(edge: .bottom))
                     }
@@ -169,27 +169,27 @@ struct ActiveSessionView: View {
             }
         }
         .sheet(isPresented: $showingPublishSheet) {
-            PublishSheet(natsManager: natsManager, isPresented: $showingPublishSheet)
+            PublishSheet(connectionManager: connectionManager, isPresented: $showingPublishSheet)
         }
     } // End of coreNatsView
     
     private var filteredMessages: [ReceivedMessage] {
         if let subject = selectedSubject {
             // Use NATS wildcard matching instead of exact string equality
-            return natsManager.messages.filter { messageMatches(subject: $0.subject, pattern: subject) }
+            return connectionManager.messages.filter { messageMatches(subject: $0.subject, pattern: subject) }
         }
-        return natsManager.messages
+        return connectionManager.messages
     }
     
     private func messageCount(for subject: String) -> Int {
-        natsManager.messages.filter { messageMatches(subject: $0.subject, pattern: subject) }.count
+        connectionManager.messages.filter { messageMatches(subject: $0.subject, pattern: subject) }.count
     }
     
     /// Checks if a message subject matches a subscription pattern (handling * and > wildcards)
     private func messageMatches(subject: String, pattern: String) -> Bool {
         if pattern == ">" { return true }
         if pattern == subject { return true }
-        if natsManager.currentProvider == .redis {
+        if connectionManager.currentProvider == .redis {
             return redisGlobMatch(subject: subject, pattern: pattern)
         } else {
             return natsSubjectMatch(subject: subject, pattern: pattern)
@@ -197,11 +197,13 @@ struct ActiveSessionView: View {
     }
 
     private var filterPlaceholder: String {
-        switch natsManager.currentProvider {
+        switch connectionManager.currentProvider {
         case .redis:
             return "Add Channel Filter (e.g. foo*)"
         case .nats:
             return "Add Subject Filter (e.g. foo.*)"
+        case .kafka:
+            return "Add Topic Filter (e.g. my-topic)"
         case nil:
             return "Add Filter"
         }
@@ -313,11 +315,11 @@ struct ActiveSessionView: View {
     
     private func subscribeToSubject() {
         guard !newSubject.isEmpty else { return }
-        natsManager.subscribe(to: newSubject)
+        connectionManager.subscribe(to: newSubject)
         newSubject = ""
     }
 }
 
 #Preview {
-    ActiveSessionView(natsManager: NatsManager.shared)
+    ActiveSessionView(connectionManager: ConnectionManager.shared)
 }
