@@ -54,32 +54,71 @@ struct JetStreamMessageListView: View {
 struct JetStreamMessageRowView: View {
     let message: JetStreamMessageEnvelope
     
+    private var deliveryColor: Color {
+        switch message.metadata.deliveryCount {
+        case 1: return .green
+        case 2...5: return .orange
+        default: return .red
+        }
+    }
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
+        VStack(alignment: .leading, spacing: MQSpacing.sm) {
+            // Top row: Subject + badges
+            HStack(spacing: MQSpacing.md) {
                 Text(message.subject)
-                    .font(.system(.body, design: .monospaced))
-                    .fontWeight(.medium)
+                    .font(.system(.body, design: .monospaced, weight: .medium))
+                    .lineLimit(1)
+                
                 Spacer()
+                
+                // Delivery count badge
+                HStack(spacing: MQSpacing.xxs) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption2)
+                    Text("\(message.metadata.deliveryCount)")
+                        .font(.caption2.weight(.semibold))
+                }
+                .padding(.horizontal, MQSpacing.sm)
+                .padding(.vertical, MQSpacing.xxs)
+                .foregroundStyle(deliveryColor)
+                .background(deliveryColor.opacity(0.12))
+                .cornerRadius(MQRadius.sm)
+                .help("Delivery count: \(message.metadata.deliveryCount)")
+                
+                // Timestamp
                 Text(formatTime(message.timestamp))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
             }
             
-            Text(preview(message.payloadString))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            // Bottom row: Preview + metadata
+            HStack(spacing: MQSpacing.md) {
+                Text(preview(message.payloadString))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                // Stream sequence badge
+                Text("#\(message.metadata.streamSequence)")
+                    .mqBadge(color: .blue, small: true)
+                    .help("Stream sequence")
+            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, MQSpacing.md)
+        .mqRowHover()
     }
     
     private func preview(_ payload: String) -> String {
-        let maxLength = 60
-        if payload.count <= maxLength {
-            return payload
+        let maxLength = 50
+        let trimmed = payload.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count <= maxLength {
+            return trimmed
         }
-        return String(payload.prefix(maxLength)) + "..."
+        return String(trimmed.prefix(maxLength)) + "…"
     }
     
     private func formatTime(_ date: Date) -> String {
@@ -106,35 +145,27 @@ struct MessageDetailWithAckView: View {
                 
                 Spacer()
                 
-                // Acknowledgment controls
-                HStack(spacing: 8) {
-                    Button(action: { acknowledgeMessage(.ack) }) {
-                        Label("Ack", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
+                // Acknowledgment controls - icon-only with tooltips
+                HStack(spacing: MQSpacing.sm) {
+                    MQIconButton("checkmark.circle.fill", color: .green) {
+                        acknowledgeMessage(.ack)
                     }
-                    .buttonStyle(.bordered)
-                    .help("Acknowledge: Mark as successfully processed")
+                    .help("Ack: Mark as processed")
                     
-                    Button(action: { acknowledgeMessage(.nak) }) {
-                        Label("Nak", systemImage: "arrow.clockwise.circle.fill")
-                            .foregroundStyle(.orange)
+                    MQIconButton("arrow.clockwise", color: .orange) {
+                        acknowledgeMessage(.nak)
                     }
-                    .buttonStyle(.bordered)
-                    .help("Negative Acknowledge: Redeliver this message")
+                    .help("Nak: Redeliver message")
                     
-                    Button(action: { acknowledgeMessage(.term) }) {
-                        Label("Term", systemImage: "xmark.circle.fill")
-                            .foregroundStyle(.red)
+                    MQIconButton("xmark", color: .red) {
+                        acknowledgeMessage(.term)
                     }
-                    .buttonStyle(.bordered)
-                    .help("Terminate: Don't redeliver this message")
+                    .help("Term: Don't redeliver")
                     
-                    Button(action: { acknowledgeMessage(.inProgress) }) {
-                        Label("WIP", systemImage: "clock.circle.fill")
-                            .foregroundStyle(.blue)
+                    MQIconButton("clock", color: .blue) {
+                        acknowledgeMessage(.inProgress)
                     }
-                    .buttonStyle(.bordered)
-                    .help("In Progress: Extend ack deadline")
+                    .help("WIP: Extend ack deadline")
                 }
                 .disabled(ackInProgress || connectionManager.connectionState != .connected)
             }
@@ -175,13 +206,39 @@ struct MessageDetailWithAckView: View {
                     }
                     
                     DetailSection(title: "Payload") {
-                        Text(message.payloadString)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(Color(nsColor: .textBackgroundColor))
-                            .cornerRadius(6)
+                        VStack(alignment: .leading, spacing: 8) {
+                            // Action buttons
+                            HStack(spacing: 8) {
+                                Button(action: {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(message.payloadString, forType: .string)
+                                }) {
+                                    Label("Copy", systemImage: "doc.on.doc")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                
+                                Text("\(message.byteCount) bytes")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                Spacer()
+                            }
+                            
+                            // Payload content
+                            Text(message.payloadString)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(12)
+                                .background(Color(nsColor: .textBackgroundColor))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                )
+                        }
                     }
                     
                     DetailSection(title: "Metadata") {

@@ -14,26 +14,19 @@ struct ConsoleView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
-                Text("CONSOLE")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                
-                Spacer()
-                
-                Toggle("Auto-scroll", isOn: $autoScroll)
-                    .font(.caption)
-                    .controlSize(.mini)
-                
-                Button(action: { connectionManager.logs.removeAll() }) {
-                    Image(systemName: "trash")
+            MQPanelHeader("Console") {
+                HStack(spacing: MQSpacing.lg) {
+                    Toggle("Auto-scroll", isOn: $autoScroll)
+                        .font(.caption)
+                        .controlSize(.mini)
+                    
+                    Button(action: { connectionManager.logs.removeAll() }) {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear Console")
                 }
-                .buttonStyle(.plain)
-                .help("Clear Console")
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(nsColor: .controlBackgroundColor))
             
             Divider()
             
@@ -41,16 +34,15 @@ struct ConsoleView: View {
             ScrollViewReader { proxy in
                 List {
                     ForEach(connectionManager.logs) { log in
-                        HStack(alignment: .top, spacing: 8) {
+                        HStack(alignment: .top, spacing: MQSpacing.md) {
                             Text(log.timestamp, style: .time)
                                 .font(.caption2)
                                 .monospacedDigit()
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.tertiary)
                                 .frame(width: 60, alignment: .leading)
                             
                             Text(log.level.rawValue.uppercased())
-                                .font(.caption2)
-                                .fontWeight(.bold)
+                                .font(.caption2.weight(.semibold))
                                 .foregroundStyle(color(for: log.level))
                                 .frame(width: 50, alignment: .leading)
                             
@@ -59,7 +51,7 @@ struct ConsoleView: View {
                                 .textSelection(.enabled)
                         }
                         .id(log.id)
-                        .padding(.vertical, 2)
+                        .padding(.vertical, MQSpacing.xxs)
                     }
                 }
                 .listStyle(.plain)

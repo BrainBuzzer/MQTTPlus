@@ -63,6 +63,7 @@ struct SessionTabItem: View {
     // Observe connection state to show status colors in the tab
     @ObservedObject var connectionManager: ConnectionManager
     @Environment(\.colorScheme) var colorScheme
+    @State private var isHovered = false
     
     init(session: Session, isSelected: Bool, onClose: @escaping () -> Void, onSelect: @escaping () -> Void) {
         self.session = session
@@ -73,55 +74,48 @@ struct SessionTabItem: View {
     }
     
     var body: some View {
-        HStack(spacing: 6) {
-            StatusDot(state: connectionManager.connectionState)
+        HStack(spacing: MQSpacing.sm) {
+            MQStatusDot(state: connectionManager.connectionState)
             
             Text(session.name)
-                .font(.callout)
+                .font(.system(.callout, weight: isSelected ? .medium : .regular))
                 .lineLimit(1)
                 
             Button(action: onClose) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .opacity(isSelected ? 1 : 0.5) // Less intrusive close button on inactive tabs
+            .opacity(isHovered || isSelected ? 1 : 0)
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, MQSpacing.lg)
         .frame(height: 32)
         .background(
             isSelected
-                ? Color(nsColor: .windowBackgroundColor) // Active: Matches content
-                : (colorScheme == .dark
-                   ? Color.black.opacity(0.3) // Dark mode inactive: Darker
-                   : Color.gray.opacity(0.15)) // Light mode inactive: Grayer
+                ? Color(nsColor: .windowBackgroundColor)
+                : (isHovered
+                   ? Color.primary.opacity(0.05)
+                   : (colorScheme == .dark
+                      ? Color.black.opacity(0.25)
+                      : Color.gray.opacity(0.1)))
         )
+        .overlay(alignment: .bottom) {
+            if isSelected {
+                Rectangle()
+                    .fill(Color.accentColor)
+                    .frame(height: 2)
+            }
+        }
         .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
         .onTapGesture(perform: onSelect)
         .overlay(
             Rectangle()
                 .frame(width: 1)
-                .foregroundColor(Color(nsColor: .separatorColor)),
+                .foregroundColor(Color(nsColor: .separatorColor).opacity(0.5)),
             alignment: .trailing
         )
-    }
-}
-
-struct StatusDot: View {
-    let state: ConnectionState
-    
-    var color: Color {
-        switch state {
-        case .connected: return .green
-        case .connecting: return .orange
-        case .error: return .red
-        case .disconnected: return .gray
-        }
-    }
-    
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 6, height: 6)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 }

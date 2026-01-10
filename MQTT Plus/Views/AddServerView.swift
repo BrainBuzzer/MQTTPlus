@@ -76,34 +76,26 @@ struct AddServerView: View {
                         Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 12) {
                             GridRow {
                                 Text("Name")
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                 TextField("Optional", text: $name)
-                                    .textFieldStyle(.roundedBorder)
+                                    .mqFilledField()
                                     .gridColumnAlignment(.leading)
                             }
                             
                             GridRow {
                                 Text("Host")
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                 HStack(spacing: 8) {
                                     TextField("127.0.0.1", text: $host)
-                                        .textFieldStyle(.roundedBorder)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .stroke(testResult == true ? Color.green : Color.clear, lineWidth: 2)
-                                        )
+                                        .mqFilledField(success: testResult == true)
                                     
                                     Text("Port")
-                                        .foregroundColor(.secondary)
+                                        .foregroundStyle(.secondary)
                                         .font(.caption)
                                     
                                     TextField(portPlaceholder, text: $port)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 60)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .stroke(testResult == true ? Color.green : Color.clear, lineWidth: 2)
-                                        )
+                                        .mqFilledField(success: testResult == true)
+                                        .frame(width: 70)
                                 }
                             }
                             
@@ -121,22 +113,22 @@ struct AddServerView: View {
                         
                         Text("Authentication")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                         
                         Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 12) {
                             GridRow {
                                 Text("User")
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                 TextField("User", text: $user)
-                                    .textFieldStyle(.roundedBorder)
+                                    .mqFilledField()
                                     .gridColumnAlignment(.leading)
                             }
                             
                             GridRow {
                                 Text("Password")
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(.secondary)
                                 SecureField("Password", text: $password)
-                                    .textFieldStyle(.roundedBorder)
+                                    .mqFilledField()
                             }
                         }
                     }
@@ -302,38 +294,45 @@ struct ProviderOption: View {
     let isSelected: Bool
     let action: () -> Void
     
+    @State private var isHovered = false
+    
     var body: some View {
         Button(action: action) {
-            VStack {
-                if let _ = NSImage(named: "icon_\(info.id)") {
-                    Image("icon_\(info.id)")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
-                } else {
-                    Image(systemName: info.iconName)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 32, height: 32)
-                        .foregroundColor(isSelected ? .white : .primary)
+            VStack(spacing: MQSpacing.md) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: MQRadius.md, style: .continuous)
+                        .fill(isSelected ? Color.accentColor : (isHovered ? Color.primary.opacity(0.08) : Color.clear))
+                        .frame(width: 44, height: 44)
+                    
+                    if let _ = NSImage(named: "icon_\(info.id)") {
+                        Image("icon_\(info.id)")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 28, height: 28)
+                    } else {
+                        Image(systemName: info.iconName)
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundStyle(isSelected ? .white : .primary)
+                    }
                 }
                 
                 Text(info.displayName)
-                    .font(.caption)
-                    .foregroundColor(isSelected ? .white : .primary)
+                    .font(.caption.weight(isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
             }
             .frame(width: 80, height: 80)
-            .background(isSelected ? Color.accentColor : Color(nsColor: .controlBackgroundColor))
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.clear : Color.secondary.opacity(0.2), lineWidth: 1)
+            .background(
+                RoundedRectangle(cornerRadius: MQRadius.lg, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: MQRadius.lg, style: .continuous)
+                    .strokeBorder(isSelected ? Color.accentColor : Color.secondary.opacity(0.15), lineWidth: isSelected ? 2 : 1)
+            )
+            .scaleEffect(isHovered ? 1.03 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
         }
         .buttonStyle(.plain)
-    }
-    
-    private var iconName: String {
-        info.iconName
+        .onHover { isHovered = $0 }
     }
 }

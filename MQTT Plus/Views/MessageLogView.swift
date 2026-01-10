@@ -63,8 +63,8 @@ struct MessageRowView: View {
     var onRepublish: ((ReceivedMessage) -> Void)?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        VStack(alignment: .leading, spacing: MQSpacing.sm) {
+            HStack(spacing: MQSpacing.md) {
                 Text(message.subject)
                     .font(.system(.headline, design: .rounded))
                     .foregroundStyle(.blue)
@@ -81,26 +81,23 @@ struct MessageRowView: View {
                 }
                 
                 Text(ByteCountFormatter.string(fromByteCount: Int64(message.byteCount), countStyle: .memory))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(4)
+                    .mqBadge(color: .secondary, small: true)
                 
                 Text(dateFormatter.string(from: message.receivedAt))
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
                     .monospacedDigit()
             }
             
             Text(message.payload)
                 .font(.system(.callout, design: .monospaced))
                 .lineLimit(2)
-                .foregroundStyle(.primary.opacity(0.8))
+                .foregroundStyle(.primary.opacity(0.7))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, MQSpacing.md)
+        .padding(.horizontal, MQSpacing.xs)
+        .mqRowHover()
         .contextMenu {
             Button {
                 onRepublish?(message)
@@ -303,15 +300,15 @@ struct PayloadContentView: View {
             Text(text)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
-                .padding()
+                .padding(MQSpacing.xl)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .multilineTextAlignment(.leading)
         }
         .background(Color(nsColor: .textBackgroundColor))
-        .cornerRadius(8)
+        .cornerRadius(MQRadius.lg)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isJSON ? Color.green.opacity(0.3) : Color.secondary.opacity(0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: MQRadius.lg)
+                .stroke(isJSON ? Color.green.opacity(0.4) : Color.secondary.opacity(0.15), lineWidth: 1)
         )
         .frame(minHeight: 100, maxHeight: 400)
     }

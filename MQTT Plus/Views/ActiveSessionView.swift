@@ -157,44 +157,53 @@ struct ActiveSessionView: View {
                     // Top: Messages Panel
                     VStack(spacing: 0) {
                         // Toolbar
-                        HStack {
+                        HStack(spacing: MQSpacing.md) {
+                            // Subject indicator
                             if let subject = selectedSubject {
                                 Text(subject)
-                                    .font(.headline)
+                                    .font(.system(.headline, weight: .semibold))
                             } else {
                                 Text("All Messages")
-                                    .foregroundColor(.secondary)
+                                    .font(.headline)
+                                    .foregroundStyle(.secondary)
                             }
                             
                             Spacer()
-
-                            Toggle(isOn: Binding(
-                                get: { connectionManager.isFirehoseEnabled },
-                                set: { connectionManager.setFirehoseEnabled($0) }
-                            )) {
-                                Label("Firehose", systemImage: "tray.full")
-                            }
-                            .toggleStyle(.button)
-                            .help("Subscribe to all messages (can be heavy for Kafka/Redis)")
-                            .disabled(connectionManager.connectionState != .connected)
-
-                            Toggle(isOn: Binding(
-                                get: { connectionManager.isPaused },
-                                set: { connectionManager.setPaused($0) }
-                            )) {
-                                if connectionManager.pausedMessageCount > 0 {
-                                    Label("Paused (\(connectionManager.pausedMessageCount))", systemImage: "pause.circle.fill")
-                                } else {
-                                    Label("Pause", systemImage: "pause.circle")
+                            
+                            // Stream controls group
+                            HStack(spacing: MQSpacing.sm) {
+                                Toggle(isOn: Binding(
+                                    get: { connectionManager.isFirehoseEnabled },
+                                    set: { connectionManager.setFirehoseEnabled($0) }
+                                )) {
+                                    Label("Firehose", systemImage: "tray.full")
                                 }
-                            }
-                            .toggleStyle(.button)
-                            .help("Pause UI updates (buffer incoming messages)")
-                            .disabled(connectionManager.connectionState != .connected)
+                                .toggleStyle(.button)
+                                .help("Subscribe to all messages (can be heavy for Kafka/Redis)")
+                                .disabled(connectionManager.connectionState != .connected)
 
+                                Toggle(isOn: Binding(
+                                    get: { connectionManager.isPaused },
+                                    set: { connectionManager.setPaused($0) }
+                                )) {
+                                    if connectionManager.pausedMessageCount > 0 {
+                                        Label("Paused (\(connectionManager.pausedMessageCount))", systemImage: "pause.circle.fill")
+                                    } else {
+                                        Label("Pause", systemImage: "pause.circle")
+                                    }
+                                }
+                                .toggleStyle(.button)
+                                .help("Pause UI updates (buffer incoming messages)")
+                                .disabled(connectionManager.connectionState != .connected)
+                            }
+                            
+                            Divider()
+                                .frame(height: 20)
+
+                            // Search
                             TextField("Search", text: $searchText)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 220)
+                                .frame(width: 180)
                                 .help("Search subject/payload")
 
                             Menu {
@@ -207,27 +216,40 @@ struct ActiveSessionView: View {
                             }
                             .help("Message retention limit")
                             
-                            Toggle(isOn: $showingInspector) {
-                                Label("Inspector", systemImage: "gauge.with.dots.needle.bottom.50percent")
-                            }
-                            .toggleStyle(.button)
-                            .help("Toggle Broker Inspector")
+                            Divider()
+                                .frame(height: 20)
                             
-                            Toggle(isOn: $showingConsole) {
-                                Label("Console", systemImage: "terminal")
+                            // Panels group
+                            HStack(spacing: MQSpacing.sm) {
+                                Toggle(isOn: $showingInspector) {
+                                    Label("Inspector", systemImage: "gauge.with.dots.needle.bottom.50percent")
+                                }
+                                .toggleStyle(.button)
+                                .help("Toggle Broker Inspector")
+                                
+                                Toggle(isOn: $showingConsole) {
+                                    Label("Console", systemImage: "terminal")
+                                }
+                                .toggleStyle(.button)
+                                .help("Toggle Connection Logs")
                             }
-                            .toggleStyle(.button)
-                            .help("Toggle Connection Logs")
                             
-                            Button(action: { showingPublishSheet = true }) {
-                                Label("Publish", systemImage: "paperplane.fill")
-                            }
+                            Divider()
+                                .frame(height: 20)
                             
-                            Button(action: { connectionManager.clearMessages() }) {
-                                Label("Clear", systemImage: "trash")
+                            // Actions group
+                            HStack(spacing: MQSpacing.sm) {
+                                Button(action: { showingPublishSheet = true }) {
+                                    Label("Publish", systemImage: "paperplane.fill")
+                                }
+                                
+                                Button(action: { connectionManager.clearMessages() }) {
+                                    Label("Clear", systemImage: "trash")
+                                }
                             }
                         }
-                        .padding()
+                        .padding(.horizontal, MQSpacing.xl)
+                        .padding(.vertical, MQSpacing.lg)
                         .background(Color(nsColor: .controlBackgroundColor))
                         
                         Divider()
@@ -254,7 +276,7 @@ struct ActiveSessionView: View {
                     // Bottom: Broker Inspector Panel
                     if showingInspector {
                         BrokerInspectorPanel(connectionManager: connectionManager)
-                            .frame(minHeight: 150, maxHeight: 350)
+                            .frame(minHeight: 150, maxHeight: .infinity)
                             .transition(.move(edge: .bottom))
                     }
                 }

@@ -110,27 +110,30 @@ struct ServerRowView: View {
     }
     
     var body: some View {
-        HStack {
+        HStack(spacing: MQSpacing.lg) {
             iconView
+                .frame(width: 20, height: 20)
             
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: MQSpacing.xxs) {
                 Text(server.name ?? "Unnamed Server")
-                    .font(.headline)
+                    .font(.system(.body, weight: .medium))
+                    .lineLimit(1)
                 Text(urlDisplayText)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             
             Spacer()
             
             if connectionState != .disconnected {
-                Circle()
-                    .fill(connectionColor)
-                    .frame(width: 8, height: 8)
+                MQStatusDot(state: connectionState)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, MQSpacing.md)
+        .padding(.horizontal, MQSpacing.xs)
         .contentShape(Rectangle())
+        .mqRowHover()
         .onTapGesture {
             handleTap()
         }
