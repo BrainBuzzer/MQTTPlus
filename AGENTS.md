@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This file provides guidance for AI coding agents working on the PubSub Viewer project.
+This file provides guidance for AI coding agents working on the MQTT Plus project.
 
 ## Project Overview
 
-PubSub Viewer is a macOS application for viewing and managing messages across multiple message queue systems. It's built with SwiftUI and uses C FFI for native library integration.
+MQTT Plus is a macOS application for viewing and managing messages across multiple message queue systems. It's built with SwiftUI and uses C FFI for native library integration.
 
 ## Architecture
 
@@ -36,7 +36,7 @@ The application uses a multi-tab architecture:
 
 The project uses C libraries via Objective-C bridging headers:
 
-1. Bridging header: `PubSub Viewer/PubSub_Viewer-Bridging-Header.h`
+1. Bridging header: `MQTT Plus/mqtt_plus-Bridging-Header.h`
 2. C library: cnats (vendored under `ThirdParty/cnats/` and linked statically)
 3. Swift wrapper: `Providers/NATS/NatsCClient.swift`
 

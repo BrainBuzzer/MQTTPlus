@@ -1,12 +1,12 @@
-# PubSub Viewer
+# MQTT Plus
 
 **The ultimate high-performance macOS client for your message queues.**
 
-![PubSub Viewer](/Users/aditya/.gemini/antigravity/brain/c52e9e96-2015-4585-9fc2-bcedb444b303/pubsub_viewer_hero_banner_1768029328557.png)
+![MQTT Plus](/Users/aditya/.gemini/antigravity/brain/c52e9e96-2015-4585-9fc2-bcedb444b303/pubsub_viewer_hero_banner_1768029328557.png)
 
 ## Overview
 
-PubSub Viewer is a native macOS application designed for developers who need a fast, reliable, and beautiful tool to interact with their messaging infrastructure. Built with SwiftUI and powered by direct C FFI bindings, it offers zero-latency performance for high-throughput environments.
+MQTT Plus is a native macOS application designed for developers who need a fast, reliable, and beautiful tool to interact with their messaging infrastructure. Built with SwiftUI and powered by direct C FFI bindings, it offers zero-latency performance for high-throughput environments.
 
 ![PubSub Dashboard](/Users/aditya/.gemini/antigravity/brain/c52e9e96-2015-4585-9fc2-bcedb444b303/pubsub_dashboard_mockup_1768029074854.png)
 
@@ -14,7 +14,7 @@ PubSub Viewer is a native macOS application designed for developers who need a f
 
 ### 🚀 High Performance Engine
 
-Unlike Electron-based wrappers, PubSub Viewer is a native Swift application. It utilizes direct FFI bindings to the official C client libraries (e.g., `cnats`), ensuring that even the most demanding message streams are handled with ease.
+Unlike Electron-based wrappers, MQTT Plus is a native Swift application. It utilizes direct FFI bindings to the official C client libraries (e.g., `cnats`), ensuring that even the most demanding message streams are handled with ease.
 
 ### 🔌 Multi-Protocol Support
 
@@ -58,7 +58,7 @@ Manage your NATS JetStream infrastructure directly from the UI.
 No external dependencies required! All C libraries are vendored and statically linked.
 
 1. Clone the repository.
-2. Open `PubSub Viewer.xcodeproj` in Xcode.
+2. Open `MQTT Plus.xcodeproj` in Xcode.
 3. Build and Run (Cmd+R).
 
 ## Architecture

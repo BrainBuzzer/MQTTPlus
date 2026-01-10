@@ -12,37 +12,37 @@
 			containerPortal = 48B531292F1202DF00706410 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 48B531302F1202DF00706410;
-			remoteInfo = "PubSub Viewer";
+			remoteInfo = "MQTT Plus";
 		};
 		48B5314E2F1202E000706410 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 48B531292F1202DF00706410 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 48B531302F1202DF00706410;
-			remoteInfo = "PubSub Viewer";
+			remoteInfo = "MQTT Plus";
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		48B531312F1202DF00706410 /* PubSub Viewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PubSub Viewer.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		48B531432F1202E000706410 /* PubSub ViewerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "PubSub ViewerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		48B5314D2F1202E000706410 /* PubSub ViewerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "PubSub ViewerUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		48B531312F1202DF00706410 /* MQTT Plus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MQTT Plus.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		48B531432F1202E000706410 /* MQTT PlusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "MQTT PlusTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		48B5314D2F1202E000706410 /* MQTT PlusUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "MQTT PlusUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		48B531332F1202DF00706410 /* PubSub Viewer */ = {
+		48B531332F1202DF00706410 /* MQTT Plus */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "PubSub Viewer";
+			path = "MQTT Plus";
 			sourceTree = "<group>";
 		};
-		48B531462F1202E000706410 /* PubSub ViewerTests */ = {
+		48B531462F1202E000706410 /* MQTT PlusTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "PubSub ViewerTests";
+			path = "MQTT PlusTests";
 			sourceTree = "<group>";
 		};
-		48B531502F1202E000706410 /* PubSub ViewerUITests */ = {
+		48B531502F1202E000706410 /* MQTT PlusUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "PubSub ViewerUITests";
+			path = "MQTT PlusUITests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -75,9 +75,9 @@
 		48B531282F1202DF00706410 = {
 			isa = PBXGroup;
 			children = (
-				48B531332F1202DF00706410 /* PubSub Viewer */,
-				48B531462F1202E000706410 /* PubSub ViewerTests */,
-				48B531502F1202E000706410 /* PubSub ViewerUITests */,
+				48B531332F1202DF00706410 /* MQTT Plus */,
+				48B531462F1202E000706410 /* MQTT PlusTests */,
+				48B531502F1202E000706410 /* MQTT PlusUITests */,
 				48B5319A2F1209D800706410 /* Frameworks */,
 				48B531322F1202DF00706410 /* Products */,
 			);
@@ -86,9 +86,9 @@
 		48B531322F1202DF00706410 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				48B531312F1202DF00706410 /* PubSub Viewer.app */,
-				48B531432F1202E000706410 /* PubSub ViewerTests.xctest */,
-				48B5314D2F1202E000706410 /* PubSub ViewerUITests.xctest */,
+				48B531312F1202DF00706410 /* MQTT Plus.app */,
+				48B531432F1202E000706410 /* MQTT PlusTests.xctest */,
+				48B5314D2F1202E000706410 /* MQTT PlusUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -103,9 +103,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		48B531302F1202DF00706410 /* PubSub Viewer */ = {
+		48B531302F1202DF00706410 /* MQTT Plus */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 48B531572F1202E000706410 /* Build configuration list for PBXNativeTarget "PubSub Viewer" */;
+			buildConfigurationList = 48B531572F1202E000706410 /* Build configuration list for PBXNativeTarget "MQTT Plus" */;
 			buildPhases = (
 				48B5312D2F1202DF00706410 /* Sources */,
 				48B5312E2F1202DF00706410 /* Frameworks */,
@@ -116,18 +116,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				48B531332F1202DF00706410 /* PubSub Viewer */,
+				48B531332F1202DF00706410 /* MQTT Plus */,
 			);
-			name = "PubSub Viewer";
+			name = "MQTT Plus";
 			packageProductDependencies = (
 			);
-			productName = "PubSub Viewer";
-			productReference = 48B531312F1202DF00706410 /* PubSub Viewer.app */;
+			productName = "MQTT Plus";
+			productReference = 48B531312F1202DF00706410 /* MQTT Plus.app */;
 			productType = "com.apple.product-type.application";
 		};
-		48B531422F1202E000706410 /* PubSub ViewerTests */ = {
+		48B531422F1202E000706410 /* MQTT PlusTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 48B5315A2F1202E000706410 /* Build configuration list for PBXNativeTarget "PubSub ViewerTests" */;
+			buildConfigurationList = 48B5315A2F1202E000706410 /* Build configuration list for PBXNativeTarget "MQTT PlusTests" */;
 			buildPhases = (
 				48B5313F2F1202E000706410 /* Sources */,
 				48B531402F1202E000706410 /* Frameworks */,
@@ -139,18 +139,18 @@
 				48B531452F1202E000706410 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				48B531462F1202E000706410 /* PubSub ViewerTests */,
+				48B531462F1202E000706410 /* MQTT PlusTests */,
 			);
-			name = "PubSub ViewerTests";
+			name = "MQTT PlusTests";
 			packageProductDependencies = (
 			);
-			productName = "PubSub ViewerTests";
-			productReference = 48B531432F1202E000706410 /* PubSub ViewerTests.xctest */;
+			productName = "MQTT PlusTests";
+			productReference = 48B531432F1202E000706410 /* MQTT PlusTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		48B5314C2F1202E000706410 /* PubSub ViewerUITests */ = {
+		48B5314C2F1202E000706410 /* MQTT PlusUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 48B5315D2F1202E000706410 /* Build configuration list for PBXNativeTarget "PubSub ViewerUITests" */;
+			buildConfigurationList = 48B5315D2F1202E000706410 /* Build configuration list for PBXNativeTarget "MQTT PlusUITests" */;
 			buildPhases = (
 				48B531492F1202E000706410 /* Sources */,
 				48B5314A2F1202E000706410 /* Frameworks */,
@@ -162,13 +162,13 @@
 				48B5314F2F1202E000706410 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				48B531502F1202E000706410 /* PubSub ViewerUITests */,
+				48B531502F1202E000706410 /* MQTT PlusUITests */,
 			);
-			name = "PubSub ViewerUITests";
+			name = "MQTT PlusUITests";
 			packageProductDependencies = (
 			);
-			productName = "PubSub ViewerUITests";
-			productReference = 48B5314D2F1202E000706410 /* PubSub ViewerUITests.xctest */;
+			productName = "MQTT PlusUITests";
+			productReference = 48B5314D2F1202E000706410 /* MQTT PlusUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -194,7 +194,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 48B5312C2F1202DF00706410 /* Build configuration list for PBXProject "PubSub Viewer" */;
+			buildConfigurationList = 48B5312C2F1202DF00706410 /* Build configuration list for PBXProject "MQTT Plus" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -210,9 +210,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				48B531302F1202DF00706410 /* PubSub Viewer */,
-				48B531422F1202E000706410 /* PubSub ViewerTests */,
-				48B5314C2F1202E000706410 /* PubSub ViewerUITests */,
+				48B531302F1202DF00706410 /* MQTT Plus */,
+				48B531422F1202E000706410 /* MQTT PlusTests */,
+				48B5314C2F1202E000706410 /* MQTT PlusUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -268,12 +268,12 @@
 /* Begin PBXTargetDependency section */
 		48B531452F1202E000706410 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 48B531302F1202DF00706410 /* PubSub Viewer */;
+			target = 48B531302F1202DF00706410 /* MQTT Plus */;
 			targetProxy = 48B531442F1202E000706410 /* PBXContainerItemProxy */;
 		};
 		48B5314F2F1202E000706410 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 48B531302F1202DF00706410 /* PubSub Viewer */;
+			target = 48B531302F1202DF00706410 /* MQTT Plus */;
 			targetProxy = 48B5314E2F1202E000706410 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -438,14 +438,15 @@
 					"$(SRCROOT)/ThirdParty/openssl/lib/libssl.a",
 					"$(SRCROOT)/ThirdParty/openssl/lib/libcrypto.a",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.PubSub-Viewer";
+				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plus";
+				PRODUCT_MODULE_NAME = mqtt_plus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "PubSub Viewer/PubSub_Viewer-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "MQTT Plus/mqtt_plus-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -492,14 +493,15 @@
 					"$(SRCROOT)/ThirdParty/openssl/lib/libssl.a",
 					"$(SRCROOT)/ThirdParty/openssl/lib/libcrypto.a",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.PubSub-Viewer";
+				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plus";
+				PRODUCT_MODULE_NAME = mqtt_plus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "PubSub Viewer/PubSub_Viewer-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "MQTT Plus/mqtt_plus-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -518,14 +520,14 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.PubSub-ViewerTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plusTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PubSub Viewer.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PubSub Viewer";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MQTT Plus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MQTT Plus";
 			};
 			name = Debug;
 		};
@@ -542,14 +544,14 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.PubSub-ViewerTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plusTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PubSub Viewer.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PubSub Viewer";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MQTT Plus.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MQTT Plus";
 			};
 			name = Release;
 		};
@@ -564,14 +566,14 @@
 					"$(SRCROOT)/ThirdParty/cnats/include",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.PubSub-ViewerUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plusUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = "PubSub Viewer";
+				TEST_TARGET_NAME = "MQTT Plus";
 			};
 			name = Debug;
 		};
@@ -586,21 +588,21 @@
 					"$(SRCROOT)/ThirdParty/cnats/include",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.PubSub-ViewerUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plusUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = "PubSub Viewer";
+				TEST_TARGET_NAME = "MQTT Plus";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		48B5312C2F1202DF00706410 /* Build configuration list for PBXProject "PubSub Viewer" */ = {
+		48B5312C2F1202DF00706410 /* Build configuration list for PBXProject "MQTT Plus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				48B531552F1202E000706410 /* Debug */,
@@ -609,7 +611,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		48B531572F1202E000706410 /* Build configuration list for PBXNativeTarget "PubSub Viewer" */ = {
+		48B531572F1202E000706410 /* Build configuration list for PBXNativeTarget "MQTT Plus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				48B531582F1202E000706410 /* Debug */,
@@ -618,7 +620,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		48B5315A2F1202E000706410 /* Build configuration list for PBXNativeTarget "PubSub ViewerTests" */ = {
+		48B5315A2F1202E000706410 /* Build configuration list for PBXNativeTarget "MQTT PlusTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				48B5315B2F1202E000706410 /* Debug */,
@@ -627,7 +629,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		48B5315D2F1202E000706410 /* Build configuration list for PBXNativeTarget "PubSub ViewerUITests" */ = {
+		48B5315D2F1202E000706410 /* Build configuration list for PBXNativeTarget "MQTT PlusUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				48B5315E2F1202E000706410 /* Debug */,
