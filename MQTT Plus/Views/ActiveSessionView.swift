@@ -247,6 +247,16 @@ struct ActiveSessionView: View {
                                     Label("Clear", systemImage: "trash")
                                 }
                             }
+                            
+                            Divider()
+                                .frame(height: 20)
+                            
+                            // Disconnect button
+                            Button(action: { connectionManager.disconnect() }) {
+                                Label("Disconnect", systemImage: "xmark.circle.fill")
+                            }
+                            .foregroundStyle(.red)
+                            .disabled(connectionManager.connectionState == .disconnected)
                         }
                         .padding(.horizontal, MQSpacing.xl)
                         .padding(.vertical, MQSpacing.lg)

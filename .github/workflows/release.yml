@@ -1,0 +1,97 @@
+name: Release to GitHub
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  APP_NAME: "MQTT Plus"
+  SCHEME: "MQTT Plus"
+  PROJECT: "MQTT Plus.xcodeproj"
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build for Release
+        run: |
+          # Ad-hoc signing (no certificate required)
+          xcodebuild clean build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=""
+
+      - name: Package App
+        run: |
+          APP_PATH="build/Build/Products/Release/$APP_NAME.app"
+          
+          # Verify app exists
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Error: App not found at $APP_PATH"
+            exit 1
+          fi
+          
+          # Create staging directory
+          mkdir -p staging
+          cp -R "$APP_PATH" staging/
+
+      - name: Create DMG
+        run: |
+          # Create DMG with Applications symlink
+          mkdir -p dmg-staging
+          cp -R "staging/$APP_NAME.app" dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          
+          # Create DMG
+          hdiutil create -volname "$APP_NAME" \
+            -srcfolder dmg-staging \
+            -ov \
+            -format UDZO \
+            "$APP_NAME.dmg"
+
+      - name: Get Version from Tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.APP_NAME }} ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## ${{ env.APP_NAME }} ${{ steps.version.outputs.VERSION }}
+            
+            > [!WARNING]
+            > **Unidentified Developer Warning**
+            > Since this app is signed ad-hoc (free distribution), macOS will show a warning: *"App cannot be opened because the developer cannot be verified."*
+            >
+            > **To open the app:**
+            > 1. Right-click the app icon
+            > 2. Select **Open**
+            > 3. Click **Open** in the dialog
+            
+            ### What's New
+            See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          files: |
+            ${{ env.APP_NAME }}.dmg
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf staging dmg-staging || true

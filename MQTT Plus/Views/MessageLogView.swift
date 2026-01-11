@@ -116,6 +116,7 @@ struct MessageDetailView: View {
     @State private var formattedPayload: String = ""
     @State private var isValidJSON: Bool = false
     @State private var selectedTab: PayloadTab = .preview
+    @State private var showingExpandedPayload = false
     
     enum PayloadTab: String, CaseIterable, Identifiable {
         case preview = "Preview"
@@ -204,6 +205,12 @@ struct MessageDetailView: View {
                             }
                             .pickerStyle(.segmented)
                             .fixedSize()
+                            
+                            Button(action: { showingExpandedPayload = true }) {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Expand payload in a separate window")
                         }
                         
                         Group {
@@ -247,6 +254,14 @@ struct MessageDetailView: View {
         .background(Color(nsColor: .controlBackgroundColor))
         .onAppear { formatPayload() }
         .onChange(of: message) { formatPayload() }
+        .sheet(isPresented: $showingExpandedPayload) {
+            ExpandedPayloadView(
+                payload: selectedTab == .hex ? message.payload.hexDump : (selectedTab == .raw ? message.payload : formattedPayload),
+                isJSON: selectedTab == .preview && isValidJSON,
+                subject: message.subject,
+                isPresented: $showingExpandedPayload
+            )
+        }
     }
     
     private func formatPayload() {
@@ -300,17 +315,75 @@ struct PayloadContentView: View {
             Text(text)
                 .font(.system(.body, design: .monospaced))
                 .textSelection(.enabled)
-                .padding(MQSpacing.xl)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .multilineTextAlignment(.leading)
+                .padding(MQSpacing.xl)
         }
+        .frame(minHeight: 100, maxHeight: 400, alignment: .topLeading)
         .background(Color(nsColor: .textBackgroundColor))
         .cornerRadius(MQRadius.lg)
         .overlay(
             RoundedRectangle(cornerRadius: MQRadius.lg)
                 .stroke(isJSON ? Color.green.opacity(0.4) : Color.secondary.opacity(0.15), lineWidth: 1)
         )
-        .frame(minHeight: 100, maxHeight: 400)
+    }
+}
+
+struct ExpandedPayloadView: View {
+    let payload: String
+    let isJSON: Bool
+    let subject: String
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Payload Preview")
+                        .font(.headline)
+                    Text(subject)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Button(action: copyToClipboard) {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+                
+                Button(action: { isPresented = false }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding()
+            .background(Color(nsColor: .controlBackgroundColor))
+            
+            Divider()
+            
+            // Content
+            ScrollView([.horizontal, .vertical]) {
+                Text(payload)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .multilineTextAlignment(.leading)
+                    .padding()
+            }
+            .background(Color(nsColor: .textBackgroundColor))
+        }
+        .frame(minWidth: 600, idealWidth: 800, minHeight: 400, idealHeight: 600)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+    
+    private func copyToClipboard() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(payload, forType: .string)
     }
 }
 
