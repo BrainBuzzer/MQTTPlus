@@ -10,6 +10,9 @@ env:
   SCHEME: "MQTT Plus"
   PROJECT: "MQTT Plus.xcodeproj"
 
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: macos-15
