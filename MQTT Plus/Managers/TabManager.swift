@@ -101,6 +101,31 @@ class TabManager: ObservableObject {
     
     func selectTab(id: UUID) {
         selectedSessionID = id
+        if let session = sessions.first(where: { $0.id == id }) {
+            session.markAsRead()
+        }
+    }
+    
+    func selectPreviousTab() {
+        guard !sessions.isEmpty else { return }
+        guard let currentID = selectedSessionID,
+              let currentIndex = sessions.firstIndex(where: { $0.id == currentID }) else {
+            selectedSessionID = sessions.first?.id
+            return
+        }
+        let newIndex = currentIndex > 0 ? currentIndex - 1 : sessions.count - 1
+        selectedSessionID = sessions[newIndex].id
+    }
+    
+    func selectNextTab() {
+        guard !sessions.isEmpty else { return }
+        guard let currentID = selectedSessionID,
+              let currentIndex = sessions.firstIndex(where: { $0.id == currentID }) else {
+            selectedSessionID = sessions.first?.id
+            return
+        }
+        let newIndex = currentIndex < sessions.count - 1 ? currentIndex + 1 : 0
+        selectedSessionID = sessions[newIndex].id
     }
     
     func session(for serverID: UUID?) -> Session? {

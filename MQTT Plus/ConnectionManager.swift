@@ -152,6 +152,25 @@ class ConnectionManager: ObservableObject {
     @Published var pausedMessageCount: Int = 0
     @Published var messageRetentionLimit: Int = 500
     
+    @Published var autoReconnectEnabled: Bool = true
+    @Published var reconnectAttempt: Int = 0
+    private var maxReconnectAttempts: Int = 10
+    private var reconnectTask: Task<Void, Never>?
+    private var lastConnectionParams: ConnectionParams?
+    
+    struct ConnectionParams {
+        let urlString: String
+        let providerId: String?
+        let serverName: String
+        let serverID: UUID?
+        let mode: ConnectionMode
+        let username: String?
+        let password: String?
+        let token: String?
+        let tlsEnabledOverride: Bool?
+        let options: [String: String]
+    }
+    
     struct LogEntry: Identifiable, Hashable {
         let id = UUID()
         let timestamp = Date()
@@ -197,6 +216,23 @@ class ConnectionManager: ObservableObject {
         options: [String: String] = [:]
     ) async {
         guard connectionState != .connecting else { return }
+        
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        reconnectAttempt = 0
+        
+        lastConnectionParams = ConnectionParams(
+            urlString: urlString,
+            providerId: providerId,
+            serverName: serverName,
+            serverID: serverID,
+            mode: mode,
+            username: username,
+            password: password,
+            token: token,
+            tlsEnabledOverride: tlsEnabledOverride,
+            options: options
+        )
 
         log("Initiating connection to \(serverName) (\(sanitizeURL(urlString)))...", level: .info)
         connectionState = .connecting
@@ -251,18 +287,24 @@ class ConnectionManager: ObservableObject {
             }
             self.client = mqClient
 
-            // Subscribe to state changes
             mqClient.statePublisher
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] state in
-                    self?.connectionState = ConnectionState(from: state)
+                    guard let self = self else { return }
+                    let newState = ConnectionState(from: state)
+                    let wasConnected = self.connectionState == .connected
+                    self.connectionState = newState
+                    
+                    if wasConnected && (newState == .disconnected || (newState != .connected && newState != .connecting)) {
+                        self.scheduleReconnect()
+                    }
                 }
                 .store(in: &cancellables)
 
-            // Connect
             try await mqClient.connect()
 
             connectionState = .connected
+            reconnectAttempt = 0
             log("Connected to \(urlString)", level: .info)
 
             // Optional firehose subscription
@@ -344,11 +386,57 @@ class ConnectionManager: ObservableObject {
     }
     
     func disconnect() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        reconnectAttempt = 0
+        lastConnectionParams = nil
+        
         let clientToDisconnect = client
         Task {
             await clientToDisconnect?.disconnect()
         }
         handleDisconnect()
+    }
+    
+    private func scheduleReconnect() {
+        guard autoReconnectEnabled else { return }
+        guard lastConnectionParams != nil else { return }
+        guard reconnectAttempt < maxReconnectAttempts else {
+            log("Max reconnect attempts reached (\(maxReconnectAttempts))", level: .error)
+            return
+        }
+        
+        reconnectTask?.cancel()
+        reconnectAttempt += 1
+        
+        let delay = min(pow(2.0, Double(reconnectAttempt - 1)), 30.0)
+        log("Reconnecting in \(Int(delay))s (attempt \(reconnectAttempt)/\(maxReconnectAttempts))...", level: .warning)
+        
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            await self?.attemptReconnect()
+        }
+    }
+    
+    private func attemptReconnect() async {
+        guard let params = lastConnectionParams else { return }
+        guard connectionState != .connected && connectionState != .connecting else { return }
+        
+        log("Attempting reconnect to \(params.serverName)...", level: .info)
+        
+        await connect(
+            to: params.urlString,
+            providerId: params.providerId,
+            serverName: params.serverName,
+            serverID: params.serverID,
+            mode: params.mode,
+            username: params.username,
+            password: params.password,
+            token: params.token,
+            tlsEnabledOverride: params.tlsEnabledOverride,
+            options: params.options
+        )
     }
     
     private func handleDisconnect() {
@@ -792,6 +880,44 @@ class ConnectionManager: ObservableObject {
         messages.removeAll { $0.subject == subject }
         pausedBuffer.removeAll { $0.subject == subject }
         pausedMessageCount = pausedBuffer.count
+    }
+    
+    func exportMessagesToJSON(_ messagesToExport: [ReceivedMessage]) -> Data? {
+        let exportData = messagesToExport.map { msg -> [String: Any] in
+            var dict: [String: Any] = [
+                "subject": msg.subject,
+                "payload": msg.payload,
+                "byteCount": msg.byteCount,
+                "receivedAt": ISO8601DateFormatter().string(from: msg.receivedAt)
+            ]
+            if let headers = msg.headers {
+                dict["headers"] = headers
+            }
+            if let replyTo = msg.replyTo {
+                dict["replyTo"] = replyTo
+            }
+            return dict
+        }
+        
+        return try? JSONSerialization.data(withJSONObject: exportData, options: [.prettyPrinted, .sortedKeys])
+    }
+    
+    func exportMessagesToCSV(_ messagesToExport: [ReceivedMessage]) -> String {
+        var csv = "Subject,Payload,ByteCount,ReceivedAt,ReplyTo,Headers\n"
+        let dateFormatter = ISO8601DateFormatter()
+        
+        for msg in messagesToExport {
+            let escapedPayload = msg.payload
+                .replacingOccurrences(of: "\"", with: "\"\"")
+                .replacingOccurrences(of: "\n", with: "\\n")
+            let escapedSubject = msg.subject.replacingOccurrences(of: "\"", with: "\"\"")
+            let headers = msg.headers?.map { "\($0.key)=\($0.value)" }.joined(separator: "; ") ?? ""
+            let escapedHeaders = headers.replacingOccurrences(of: "\"", with: "\"\"")
+            
+            csv += "\"\(escapedSubject)\",\"\(escapedPayload)\",\(msg.byteCount),\(dateFormatter.string(from: msg.receivedAt)),\"\(msg.replyTo ?? "")\",\"\(escapedHeaders)\"\n"
+        }
+        
+        return csv
     }
     
     // MARK: - Logging

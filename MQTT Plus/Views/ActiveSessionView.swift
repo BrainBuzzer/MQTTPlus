@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import UniformTypeIdentifiers
 
 struct ActiveSessionView: View {
     @ObservedObject var connectionManager: ConnectionManager
@@ -19,6 +20,8 @@ struct ActiveSessionView: View {
     
     @State private var showingConsole = false
     @State private var showingInspector = false
+    @State private var showingExportAlert = false
+    @State private var exportAlertMessage = ""
     
     var body: some View {
         // Show appropriate view based on connection mode
@@ -156,22 +159,29 @@ struct ActiveSessionView: View {
                 VSplitView {
                     // Top: Messages Panel
                     VStack(spacing: 0) {
-                        // Toolbar
-                        HStack(spacing: MQSpacing.md) {
-                            // Subject indicator
-                            if let subject = selectedSubject {
-                                Text(subject)
-                                    .font(.system(.headline, weight: .semibold))
-                            } else {
-                                Text("All Messages")
-                                    .font(.headline)
+                        HStack(spacing: MQSpacing.lg) {
+                            HStack(spacing: MQSpacing.md) {
+                                if let subject = selectedSubject {
+                                    Text(subject)
+                                        .font(.system(.headline, weight: .semibold))
+                                } else {
+                                    Text("All Messages")
+                                        .font(.headline)
+                                        .foregroundStyle(.secondary)
+                                }
+                                
+                                Text("\(filteredMessages.count)")
+                                    .font(.caption.weight(.medium).monospacedDigit())
                                     .foregroundStyle(.secondary)
+                                    .padding(.horizontal, MQSpacing.sm)
+                                    .padding(.vertical, MQSpacing.xxs)
+                                    .background(Color.secondary.opacity(0.12))
+                                    .clipShape(Capsule())
                             }
                             
                             Spacer()
                             
-                            // Stream controls group
-                            HStack(spacing: MQSpacing.sm) {
+                            MQToolbarGroup {
                                 Toggle(isOn: Binding(
                                     get: { connectionManager.isFirehoseEnabled },
                                     set: { connectionManager.setFirehoseEnabled($0) }
@@ -179,7 +189,8 @@ struct ActiveSessionView: View {
                                     Label("Firehose", systemImage: "tray.full")
                                 }
                                 .toggleStyle(.button)
-                                .help("Subscribe to all messages (can be heavy for Kafka/Redis)")
+                                .controlSize(.small)
+                                .help("Subscribe to all messages")
                                 .disabled(connectionManager.connectionState != .connected)
 
                                 Toggle(isOn: Binding(
@@ -187,79 +198,89 @@ struct ActiveSessionView: View {
                                     set: { connectionManager.setPaused($0) }
                                 )) {
                                     if connectionManager.pausedMessageCount > 0 {
-                                        Label("Paused (\(connectionManager.pausedMessageCount))", systemImage: "pause.circle.fill")
+                                        Label("\(connectionManager.pausedMessageCount)", systemImage: "pause.circle.fill")
                                     } else {
                                         Label("Pause", systemImage: "pause.circle")
                                     }
                                 }
                                 .toggleStyle(.button)
-                                .help("Pause UI updates (buffer incoming messages)")
+                                .controlSize(.small)
+                                .help("Pause message stream")
                                 .disabled(connectionManager.connectionState != .connected)
                             }
                             
-                            Divider()
-                                .frame(height: 20)
-
-                            // Search
-                            TextField("Search", text: $searchText)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 180)
-                                .help("Search subject/payload")
-
-                            Menu {
-                                Button("Keep last 200") { connectionManager.setMessageRetentionLimit(200) }
-                                Button("Keep last 500") { connectionManager.setMessageRetentionLimit(500) }
-                                Button("Keep last 1000") { connectionManager.setMessageRetentionLimit(1000) }
-                                Button("Keep last 5000") { connectionManager.setMessageRetentionLimit(5000) }
-                            } label: {
-                                Label("\(connectionManager.messageRetentionLimit)", systemImage: "tray.and.arrow.down")
+                            MQToolbarGroup {
+                                MQSearchField(text: $searchText, placeholder: "Search messages...", width: 160)
+                                
+                                Menu {
+                                    Button("Keep last 200") { connectionManager.setMessageRetentionLimit(200) }
+                                    Button("Keep last 500") { connectionManager.setMessageRetentionLimit(500) }
+                                    Button("Keep last 1000") { connectionManager.setMessageRetentionLimit(1000) }
+                                    Button("Keep last 5000") { connectionManager.setMessageRetentionLimit(5000) }
+                                } label: {
+                                    Label("\(connectionManager.messageRetentionLimit)", systemImage: "tray.and.arrow.down")
+                                        .font(.callout)
+                                }
+                                .menuStyle(.borderlessButton)
+                                .fixedSize()
+                                .help("Message retention limit")
                             }
-                            .help("Message retention limit")
                             
-                            Divider()
-                                .frame(height: 20)
-                            
-                            // Panels group
-                            HStack(spacing: MQSpacing.sm) {
+                            MQToolbarGroup {
                                 Toggle(isOn: $showingInspector) {
-                                    Label("Inspector", systemImage: "gauge.with.dots.needle.bottom.50percent")
+                                    Image(systemName: "gauge.with.dots.needle.bottom.50percent")
                                 }
                                 .toggleStyle(.button)
-                                .help("Toggle Broker Inspector")
+                                .controlSize(.small)
+                                .help("Inspector (I)")
                                 
                                 Toggle(isOn: $showingConsole) {
-                                    Label("Console", systemImage: "terminal")
+                                    Image(systemName: "terminal")
                                 }
                                 .toggleStyle(.button)
-                                .help("Toggle Connection Logs")
+                                .controlSize(.small)
+                                .help("Console (C)")
                             }
                             
-                            Divider()
-                                .frame(height: 20)
-                            
-                            // Actions group
                             HStack(spacing: MQSpacing.sm) {
                                 Button(action: { showingPublishSheet = true }) {
                                     Label("Publish", systemImage: "paperplane.fill")
                                 }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                
+                                Menu {
+                                    Button(action: { exportMessages(format: .json) }) {
+                                        Label("Export as JSON", systemImage: "curlybraces")
+                                    }
+                                    Button(action: { exportMessages(format: .csv) }) {
+                                        Label("Export as CSV", systemImage: "tablecells")
+                                    }
+                                } label: {
+                                    Image(systemName: "square.and.arrow.up")
+                                }
+                                .menuStyle(.borderlessButton)
+                                .help("Export messages")
+                                .disabled(filteredMessages.isEmpty)
                                 
                                 Button(action: { connectionManager.clearMessages() }) {
-                                    Label("Clear", systemImage: "trash")
+                                    Image(systemName: "trash")
                                 }
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(.secondary)
+                                .help("Clear messages")
                             }
                             
-                            Divider()
-                                .frame(height: 20)
-                            
-                            // Disconnect button
                             Button(action: { connectionManager.disconnect() }) {
-                                Label("Disconnect", systemImage: "xmark.circle.fill")
+                                Image(systemName: "xmark.circle.fill")
                             }
-                            .foregroundStyle(.red)
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.red.opacity(0.8))
+                            .help("Disconnect")
                             .disabled(connectionManager.connectionState == .disconnected)
                         }
                         .padding(.horizontal, MQSpacing.xl)
-                        .padding(.vertical, MQSpacing.lg)
+                        .padding(.vertical, MQSpacing.md)
                         .background(Color(nsColor: .controlBackgroundColor))
                         
                         Divider()
@@ -276,22 +297,28 @@ struct ActiveSessionView: View {
                     }
                     .frame(minHeight: 200, maxHeight: .infinity)
                     
-                    // Bottom: Console Panel
                     if showingConsole {
                         ConsoleView(connectionManager: connectionManager)
                             .frame(minHeight: 100, maxHeight: 300)
-                            .transition(.move(edge: .bottom))
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .bottom).combined(with: .opacity)
+                            ))
                     }
                     
-                    // Bottom: Broker Inspector Panel
                     if showingInspector {
                         BrokerInspectorPanel(connectionManager: connectionManager)
                             .frame(minHeight: 150, maxHeight: .infinity)
-                            .transition(.move(edge: .bottom))
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .move(edge: .bottom).combined(with: .opacity)
+                            ))
                     }
                 }
             }
         }
+        .animation(MQAnimation.spring, value: showingConsole)
+        .animation(MQAnimation.spring, value: showingInspector)
         .sheet(isPresented: $showingPublishSheet) {
             PublishSheet(
                 connectionManager: connectionManager,
@@ -483,6 +510,53 @@ struct ActiveSessionView: View {
         guard !newSubject.isEmpty else { return }
         connectionManager.subscribe(to: newSubject)
         newSubject = ""
+    }
+    
+    enum ExportFormat {
+        case json, csv
+        
+        var fileExtension: String {
+            switch self {
+            case .json: return "json"
+            case .csv: return "csv"
+            }
+        }
+        
+        var contentType: String {
+            switch self {
+            case .json: return "application/json"
+            case .csv: return "text/csv"
+            }
+        }
+    }
+    
+    private func exportMessages(format: ExportFormat) {
+        let messagesToExport = filteredMessages
+        guard !messagesToExport.isEmpty else { return }
+        
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = format == .json ? [.json] : [.commaSeparatedText]
+        panel.nameFieldStringValue = "messages.\(format.fileExtension)"
+        panel.title = "Export Messages"
+        panel.prompt = "Export"
+        
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            
+            do {
+                switch format {
+                case .json:
+                    if let data = connectionManager.exportMessagesToJSON(messagesToExport) {
+                        try data.write(to: url)
+                    }
+                case .csv:
+                    let csv = connectionManager.exportMessagesToCSV(messagesToExport)
+                    try csv.write(to: url, atomically: true, encoding: .utf8)
+                }
+            } catch {
+                print("Export failed: \(error.localizedDescription)")
+            }
+        }
     }
 }
 

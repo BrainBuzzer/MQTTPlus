@@ -424,6 +424,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/ThirdParty/cnats/include",
+					"$(SRCROOT)/ThirdParty/librdkafka/include",
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -437,6 +438,10 @@
 					"$(SRCROOT)/ThirdParty/cnats/lib/libnats_static.a",
 					"$(SRCROOT)/ThirdParty/openssl/lib/libssl.a",
 					"$(SRCROOT)/ThirdParty/openssl/lib/libcrypto.a",
+					"$(SRCROOT)/ThirdParty/librdkafka/lib/librdkafka-static.a",
+					"-lz",
+					"-lsasl2",
+					"-lcurl",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plus";
 				PRODUCT_MODULE_NAME = mqtt_plus;
@@ -479,6 +484,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/ThirdParty/cnats/include",
+					"$(SRCROOT)/ThirdParty/librdkafka/include",
 				);
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -492,6 +498,10 @@
 					"$(SRCROOT)/ThirdParty/cnats/lib/libnats_static.a",
 					"$(SRCROOT)/ThirdParty/openssl/lib/libssl.a",
 					"$(SRCROOT)/ThirdParty/openssl/lib/libcrypto.a",
+					"$(SRCROOT)/ThirdParty/librdkafka/lib/librdkafka-static.a",
+					"-lz",
+					"-lsasl2",
+					"-lcurl",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plus";
 				PRODUCT_MODULE_NAME = mqtt_plus;
@@ -517,6 +527,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/ThirdParty/cnats/include",
+					"$(SRCROOT)/ThirdParty/librdkafka/include",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
@@ -541,6 +552,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/ThirdParty/cnats/include",
+					"$(SRCROOT)/ThirdParty/librdkafka/include",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.2;
 				MARKETING_VERSION = 1.0;
@@ -564,6 +576,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/ThirdParty/cnats/include",
+					"$(SRCROOT)/ThirdParty/librdkafka/include",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plusUITests";
@@ -586,6 +599,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/ThirdParty/cnats/include",
+					"$(SRCROOT)/ThirdParty/librdkafka/include",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "me.brainbuzzer.mqtt-plusUITests";

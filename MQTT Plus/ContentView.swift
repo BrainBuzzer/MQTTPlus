@@ -30,30 +30,74 @@ struct ContentView: View {
 
 struct WelcomeView: View {
     let connectionState: ConnectionState
+    @State private var isAnimating = false
     
     var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "antenna.radiowaves.left.and.right.circle.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(.blue.gradient)
+        VStack(spacing: 24) {
+            welcomeIllustration
             
-            Text("MQTT Plus")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Select a server from the sidebar to connect")
-                .foregroundColor(.secondary)
-            
-            if case .connecting = connectionState {
-                ProgressView("Connecting...")
-                    .padding(.top)
-            } else if case .error(let message) = connectionState {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundColor(.red)
-                    .padding(.top)
+            VStack(spacing: 8) {
+                Text("MQTT Plus")
+                    .font(.largeTitle.weight(.bold))
+                
+                Text("Select a server from the sidebar to connect")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
             }
+            
+            connectionStateView
+            
+            shortcutHints
         }
-        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { isAnimating = true }
+    }
+    
+    private var welcomeIllustration: some View {
+        ZStack {
+            Circle()
+                .fill(Color.blue.opacity(0.08))
+                .frame(width: 200, height: 200)
+                .blur(radius: 40)
+            
+            floatingIcon(index: 0)
+            floatingIcon(index: 1)
+            floatingIcon(index: 2)
+            
+            Image(systemName: "antenna.radiowaves.left.and.right.circle.fill")
+                .font(.system(size: 72))
+                .foregroundStyle(.blue.gradient)
+        }
+        .frame(height: 200)
+    }
+    
+    private func floatingIcon(index: Int) -> some View {
+        let angle = Double(index) * .pi * 2 / 3 + (isAnimating ? .pi / 6 : 0)
+        let icons = ["message.fill", "arrow.up.arrow.down", "bolt.fill"]
+        return Image(systemName: icons[index])
+            .font(.title3)
+            .foregroundStyle(Color.blue.opacity(0.5))
+            .offset(x: cos(angle) * 70, y: sin(angle) * 70)
+            .animation(.easeInOut(duration: 4).repeatForever(autoreverses: true).delay(Double(index) * 0.3), value: isAnimating)
+    }
+    
+    @ViewBuilder
+    private var connectionStateView: some View {
+        if case .connecting = connectionState {
+            ProgressView("Connecting...")
+        } else if case .error(let message) = connectionState {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+        }
+    }
+    
+    private var shortcutHints: some View {
+        HStack(spacing: 32) {
+            MQShortcutHint(keys: ["⌘", "N"], label: "New Server")
+            MQShortcutHint(keys: ["⌘", "R"], label: "Refresh")
+            MQShortcutHint(keys: ["⌘", ","], label: "Settings")
+        }
+        .padding(.top, 16)
     }
 }
 

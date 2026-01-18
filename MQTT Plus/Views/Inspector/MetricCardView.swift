@@ -46,33 +46,32 @@ struct MetricCardView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Header with title and status
+        VStack(alignment: .leading, spacing: MQSpacing.md) {
             HStack {
                 Text(title)
-                    .font(.caption)
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 
                 Spacer()
                 
-                // Status indicator
                 Circle()
                     .fill(statusColor)
                     .frame(width: 8, height: 8)
+                    .shadow(color: statusColor.opacity(0.5), radius: 3, x: 0, y: 0)
             }
             
-            // Value display
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: MQSpacing.xs) {
                 Text(value)
-                    .font(.system(.title2, design: .rounded, weight: .semibold))
+                    .font(.system(.title2, design: .rounded, weight: .bold))
                     .foregroundStyle(.primary)
                     .contentTransition(.numericText())
-                    .animation(.spring(duration: 0.3), value: value)
+                    .animation(MQAnimation.spring, value: value)
                 
                 if let unit = unit {
                     Text(unit)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                 }
             }
             
@@ -96,15 +95,22 @@ struct MetricCardView: View {
                     .frame(height: 30)
             }
         }
-        .padding(12)
+        .padding(MQSpacing.lg)
         .background {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: MQRadius.xl, style: .continuous)
                 .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(statusColor.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: MQRadius.xl, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [statusColor.opacity(0.4), statusColor.opacity(0.15)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         }
     }
     

@@ -23,7 +23,7 @@ struct ServerListView: View {
     
     var body: some View {
         List(selection: $selectedServer) {
-            Section("Servers") {
+            Section {
                 ForEach(servers) { server in
                     ServerRowView(server: server, tabManager: tabManager)
                         .tag(server)
@@ -32,6 +32,18 @@ struct ServerListView: View {
                         }
                 }
                 .onDelete(perform: deleteServers)
+            } header: {
+                HStack {
+                    Text("Servers")
+                    Spacer()
+                    Text("\(servers.count)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, MQSpacing.sm)
+                        .padding(.vertical, MQSpacing.xxs)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
             }
         }
         .listStyle(.sidebar)
@@ -46,6 +58,9 @@ struct ServerListView: View {
             AddServerView()
         }
         .navigationTitle("Servers")
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name.openNewConnection)) { _ in
+            showingAddServer = true
+        }
     }
     
     private func deleteServer(_ server: ServerConfig) {
@@ -126,9 +141,8 @@ struct ServerRowView: View {
             
             Spacer()
             
-            if connectionState != .disconnected {
-                MQStatusDot(state: connectionState)
-            }
+            MQStatusDot(state: connectionState)
+                .opacity(connectionState == .disconnected ? 0.4 : 1.0)
         }
         .padding(.vertical, MQSpacing.md)
         .padding(.horizontal, MQSpacing.xs)

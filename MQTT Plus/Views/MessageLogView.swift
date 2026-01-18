@@ -22,33 +22,31 @@ struct MessageLogView: View {
     
     var body: some View {
         if messages.isEmpty {
-            ContentUnavailableView(
-                "No Messages",
-                systemImage: "tray",
-                description: Text("Messages will appear here when received")
+            MQEmptyState(
+                icon: "tray",
+                title: "No Messages",
+                description: "Messages will appear here when received. Subscribe to a subject to start receiving."
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             HSplitView {
-                // Message list
                 List(selection: $selectedMessage) {
-                    ForEach(messages) { message in
-                        MessageRowView(message: message, dateFormatter: dateFormatter, onRepublish: onRepublish)
+                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                        MessageRowView(message: message, dateFormatter: dateFormatter, onRepublish: onRepublish, index: index)
                             .tag(message)
                     }
                 }
                 .listStyle(.plain)
                 .frame(minWidth: 350, maxWidth: .infinity, maxHeight: .infinity)
                 
-                // Message detail
                 if let message = selectedMessage {
                     MessageDetailView(message: message, dateFormatter: dateFormatter, onRepublish: onRepublish)
                         .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    ContentUnavailableView(
-                        "Select a Message",
-                        systemImage: "doc.text",
-                        description: Text("Click on a message to view details")
+                    MQEmptyState(
+                        icon: "doc.text.magnifyingglass",
+                        title: "Select a Message",
+                        description: "Click on a message from the list to view its details and payload.",
+                        animate: false
                     )
                     .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -61,48 +59,80 @@ struct MessageRowView: View {
     let message: ReceivedMessage
     let dateFormatter: DateFormatter
     var onRepublish: ((ReceivedMessage) -> Void)?
+    var index: Int = 0
+    
+    private var ageColor: Color {
+        let age = Date().timeIntervalSince(message.receivedAt)
+        if age < 1 { return .green }
+        if age < 5 { return .blue }
+        return .clear
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: MQSpacing.sm) {
-            HStack(spacing: MQSpacing.md) {
-                Text(message.subject)
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundStyle(.blue)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                
-                Spacer()
-                
-                if message.headers != nil {
-                    Image(systemName: "list.bullet.rectangle.portrait")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .help("Has Headers")
+        HStack(spacing: 0) {
+            Rectangle()
+                .fill(ageColor)
+                .frame(width: 3)
+                .animation(MQAnimation.quick, value: ageColor)
+            
+            VStack(alignment: .leading, spacing: MQSpacing.sm) {
+                HStack(spacing: MQSpacing.md) {
+                    Text(message.subject)
+                        .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    
+                    Spacer()
+                    
+                    HStack(spacing: MQSpacing.sm) {
+                        if message.headers != nil {
+                            Image(systemName: "doc.text")
+                                .font(.caption2)
+                                .foregroundStyle(.blue.opacity(0.7))
+                                .help("Has Headers")
+                        }
+                        
+                        Text(ByteCountFormatter.string(fromByteCount: Int64(message.byteCount), countStyle: .memory))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                        
+                        Text(dateFormatter.string(from: message.receivedAt))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 
-                Text(ByteCountFormatter.string(fromByteCount: Int64(message.byteCount), countStyle: .memory))
-                    .mqBadge(color: .secondary, small: true)
-                
-                Text(dateFormatter.string(from: message.receivedAt))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
+                Text(message.payload)
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            
-            Text(message.payload)
-                .font(.system(.callout, design: .monospaced))
-                .lineLimit(2)
-                .foregroundStyle(.primary.opacity(0.7))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, MQSpacing.md)
+            .padding(.horizontal, MQSpacing.lg)
         }
-        .padding(.vertical, MQSpacing.md)
-        .padding(.horizontal, MQSpacing.xs)
+        .background(index % 2 == 0 ? Color.clear : Color.primary.opacity(0.02))
         .mqRowHover()
         .contextMenu {
             Button {
                 onRepublish?(message)
             } label: {
                 Label("Republish", systemImage: "paperplane")
+            }
+            
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(message.payload, forType: .string)
+            } label: {
+                Label("Copy Payload", systemImage: "doc.on.doc")
+            }
+            
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(message.subject, forType: .string)
+            } label: {
+                Label("Copy Subject", systemImage: "tag")
             }
         }
     }
@@ -310,10 +340,18 @@ struct PayloadContentView: View {
     let text: String
     let isJSON: Bool
     
+    private var displayContent: Text {
+        if isJSON {
+            return Text(JSONSyntaxHighlighter.highlightSimple(text))
+        } else {
+            return Text(text)
+                .font(.system(.body, design: .monospaced))
+        }
+    }
+    
     var body: some View {
         ScrollView([.horizontal, .vertical]) {
-            Text(text)
-                .font(.system(.body, design: .monospaced))
+            displayContent
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .multilineTextAlignment(.leading)
@@ -366,14 +404,19 @@ struct ExpandedPayloadView: View {
             
             Divider()
             
-            // Content
             ScrollView([.horizontal, .vertical]) {
-                Text(payload)
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .multilineTextAlignment(.leading)
-                    .padding()
+                Group {
+                    if isJSON {
+                        Text(JSONSyntaxHighlighter.highlightSimple(payload))
+                    } else {
+                        Text(payload)
+                            .font(.system(.body, design: .monospaced))
+                    }
+                }
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .multilineTextAlignment(.leading)
+                .padding()
             }
             .background(Color(nsColor: .textBackgroundColor))
         }

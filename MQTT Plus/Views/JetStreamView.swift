@@ -55,18 +55,19 @@ struct JetStreamView: View {
                     
                     Divider()
                     
-                    // Stream list
                     if connectionManager.connectionState != .connected {
-                        ContentUnavailableView(
-                            "Not Connected",
-                            systemImage: "bolt.horizontal.circle",
-                            description: Text("Connect to view JetStream streams")
+                        MQEmptyState(
+                            icon: "bolt.horizontal.circle",
+                            title: "Not Connected",
+                            description: "Connect to a server to view JetStream streams."
                         )
                     } else if connectionManager.streams.isEmpty {
-                        ContentUnavailableView(
-                            "No Streams",
-                            systemImage: "cylinder",
-                            description: Text("Create a stream to get started")
+                        MQEmptyState(
+                            icon: "cylinder",
+                            title: "No Streams",
+                            description: "Create a stream to start storing messages.",
+                            actionLabel: "Create Stream",
+                            action: { showingStreamCreator = true }
                         )
                     } else {
                         List(selection: $selectedStreamName) {
@@ -111,10 +112,12 @@ struct JetStreamView: View {
                     
                     if let streamName = selectedStreamName {
                         if consumersForSelectedStream.isEmpty {
-                            ContentUnavailableView(
-                                "No Consumers",
-                                systemImage: "tray",
-                                description: Text("Create a consumer to start receiving messages")
+                            MQEmptyState(
+                                icon: "person.2",
+                                title: "No Consumers",
+                                description: "Create a consumer to start receiving messages.",
+                                actionLabel: "Create Consumer",
+                                action: { showingConsumerCreator = true }
                             )
                         } else {
                             List(selection: $selectedConsumerName) {
@@ -127,10 +130,11 @@ struct JetStreamView: View {
                             .scrollContentBackground(.hidden)
                         }
                     } else {
-                        ContentUnavailableView(
-                            "Select a Stream",
-                            systemImage: "arrow.left",
-                            description: Text("Choose a stream to view its consumers")
+                        MQEmptyState(
+                            icon: "arrow.left.circle",
+                            title: "Select a Stream",
+                            description: "Choose a stream from the left to view its consumers.",
+                            animate: false
                         )
                     }
                 }
@@ -206,10 +210,11 @@ struct JetStreamView: View {
                             JetStreamMessageListView(connectionManager: connectionManager)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                         } else {
-                            ContentUnavailableView(
-                                "No Consumer Selected",
-                                systemImage: "arrow.left",
-                                description: Text("Select a consumer to view its messages")
+                            MQEmptyState(
+                                icon: "tray.2",
+                                title: "No Consumer Selected",
+                                description: "Select a consumer from the middle panel to view messages.",
+                                animate: false
                             )
                         }
                     }
