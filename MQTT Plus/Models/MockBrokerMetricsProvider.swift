@@ -23,6 +23,7 @@ public final class MockBrokerMetricsProvider: ObservableObject {
     @Published public var natsMetrics: NatsMetrics
     @Published public var redisMetrics: RedisMetrics
     @Published public var kafkaMetrics: KafkaMetrics
+    @Published public var rabbitmqMetrics: RabbitMQMetrics
     
     // History for sparklines
     @Published public var natsLagHistory: MetricHistory
@@ -31,6 +32,8 @@ public final class MockBrokerMetricsProvider: ObservableObject {
     @Published public var redisMemoryHistory: MetricHistory
     @Published public var kafkaLagHistory: MetricHistory
     @Published public var kafkaUrpHistory: MetricHistory
+    @Published public var rabbitmqPublishHistory: MetricHistory
+    @Published public var rabbitmqDeliverHistory: MetricHistory
     
     // MARK: - Private Properties
     
@@ -79,6 +82,15 @@ public final class MockBrokerMetricsProvider: ObservableObject {
             logEndOffset: 5_000_000
         )
         
+        self.rabbitmqMetrics = RabbitMQMetrics(
+            messagesPublished: 1_000_000,
+            messagesDelivered: 995_000,
+            bytesPublished: 256_000_000,
+            bytesDelivered: 254_720_000,
+            channelCount: 8,
+            consumerCount: 12
+        )
+        
         // Initialize history containers
         self.natsLagHistory = MetricHistory(maxPoints: 60)
         self.natsMsgHistory = MetricHistory(maxPoints: 60)
@@ -86,6 +98,8 @@ public final class MockBrokerMetricsProvider: ObservableObject {
         self.redisMemoryHistory = MetricHistory(maxPoints: 60)
         self.kafkaLagHistory = MetricHistory(maxPoints: 60)
         self.kafkaUrpHistory = MetricHistory(maxPoints: 60)
+        self.rabbitmqPublishHistory = MetricHistory(maxPoints: 60)
+        self.rabbitmqDeliverHistory = MetricHistory(maxPoints: 60)
         
         // Pre-populate history with initial values
         for _ in 0..<30 {
@@ -95,6 +109,8 @@ public final class MockBrokerMetricsProvider: ObservableObject {
             redisMemoryHistory.append(Double(baseRedisMemory))
             kafkaLagHistory.append(Double(baseKafkaLag) + Double.random(in: -50...50))
             kafkaUrpHistory.append(0)
+            rabbitmqPublishHistory.append(250.0 + Double.random(in: -20...20))
+            rabbitmqDeliverHistory.append(245.0 + Double.random(in: -20...20))
         }
         
         // Start update timers
@@ -282,6 +298,8 @@ public final class MockBrokerMetricsProvider: ObservableObject {
             return .redis(redisMetrics)
         case .kafka:
             return .kafka(kafkaMetrics)
+        case .rabbitmq:
+            return .rabbitmq(rabbitmqMetrics)
         }
     }
     

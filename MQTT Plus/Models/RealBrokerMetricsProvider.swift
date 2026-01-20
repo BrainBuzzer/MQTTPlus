@@ -22,6 +22,7 @@ public final class RealBrokerMetricsProvider: ObservableObject {
     @Published public var natsMetrics: NatsMetrics = NatsMetrics()
     @Published public var redisMetrics: RedisMetrics = RedisMetrics()
     @Published public var kafkaMetrics: KafkaMetrics = KafkaMetrics()
+    @Published public var rabbitmqMetrics: RabbitMQMetrics = RabbitMQMetrics()
     
     // History for sparklines
     @Published public var natsLagHistory: MetricHistory = MetricHistory(maxPoints: 60)
@@ -30,6 +31,8 @@ public final class RealBrokerMetricsProvider: ObservableObject {
     @Published public var redisMemoryHistory: MetricHistory = MetricHistory(maxPoints: 60)
     @Published public var kafkaLagHistory: MetricHistory = MetricHistory(maxPoints: 60)
     @Published public var kafkaUrpHistory: MetricHistory = MetricHistory(maxPoints: 60)
+    @Published public var rabbitmqPublishHistory: MetricHistory = MetricHistory(maxPoints: 60)
+    @Published public var rabbitmqDeliverHistory: MetricHistory = MetricHistory(maxPoints: 60)
     
     // MARK: - Private Properties
     
@@ -91,6 +94,7 @@ public final class RealBrokerMetricsProvider: ObservableObject {
         case .nats: brokerType = .nats
         case .redis: brokerType = .redis
         case .kafka: brokerType = .kafka
+        case .rabbitmq: brokerType = .rabbitmq
         }
     }
     
@@ -149,6 +153,8 @@ public final class RealBrokerMetricsProvider: ObservableObject {
             await refreshRedisMetrics()
         case .kafka:
             await refreshKafkaMetrics()
+        case .rabbitmq:
+            await refreshRabbitMQMetrics()
         }
     }
     
@@ -193,5 +199,17 @@ public final class RealBrokerMetricsProvider: ObservableObject {
         } catch {
             kafkaMetrics = KafkaMetrics()
         }
+    }
+    
+    // MARK: - RabbitMQ Metrics
+    
+    private func refreshRabbitMQMetrics() async {
+        guard let manager = connectionManager else { return }
+        guard let rabbitmqClient = manager.activeClient as? RabbitMQClient else { return }
+        
+        let metrics = rabbitmqClient.fetchMetrics()
+        rabbitmqMetrics = metrics
+        rabbitmqPublishHistory.append(Double(metrics.messagesPublished))
+        rabbitmqDeliverHistory.append(Double(metrics.messagesDelivered))
     }
 }

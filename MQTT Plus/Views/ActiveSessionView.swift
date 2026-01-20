@@ -375,6 +375,8 @@ struct ActiveSessionView: View {
             return redisGlobMatch(subject: subject, pattern: pattern)
         case .kafka:
             return kafkaTopicMatch(topic: subject, pattern: pattern)
+        case .rabbitmq:
+            return rabbitmqRoutingKeyMatch(routingKey: subject, pattern: pattern)
         case .nats, nil:
             return natsSubjectMatch(subject: subject, pattern: pattern)
         }
@@ -388,9 +390,73 @@ struct ActiveSessionView: View {
             return "Add Subject Filter (e.g. foo.*)"
         case .kafka:
             return "Add Topic Filter (e.g. my-topic)"
+        case .rabbitmq:
+            return "Add Routing Key Filter (e.g. task.*)"
         case nil:
             return "Add Filter"
         }
+    }
+    
+    /// AMQP routing key pattern matching: `*` matches one word, `#` matches zero or more words
+    private func rabbitmqRoutingKeyMatch(routingKey: String, pattern: String) -> Bool {
+        let keyTokens = routingKey.components(separatedBy: ".")
+        let patternTokens = pattern.components(separatedBy: ".")
+        
+        var ki = 0
+        var pi = 0
+        
+        while pi < patternTokens.count {
+            let token = patternTokens[pi]
+            if token == "#" {
+                if pi == patternTokens.count - 1 { return true }
+                for nextKi in ki...keyTokens.count {
+                    if rabbitmqRoutingKeyMatchFrom(keyTokens: keyTokens, keyIndex: nextKi,
+                                                    patternTokens: patternTokens, patternIndex: pi + 1) {
+                        return true
+                    }
+                }
+                return false
+            } else if token == "*" {
+                if ki >= keyTokens.count { return false }
+                ki += 1
+                pi += 1
+            } else {
+                if ki >= keyTokens.count || keyTokens[ki] != token { return false }
+                ki += 1
+                pi += 1
+            }
+        }
+        
+        return ki == keyTokens.count
+    }
+    
+    private func rabbitmqRoutingKeyMatchFrom(keyTokens: [String], keyIndex: Int,
+                                              patternTokens: [String], patternIndex: Int) -> Bool {
+        var ki = keyIndex
+        var pi = patternIndex
+        
+        while pi < patternTokens.count {
+            let token = patternTokens[pi]
+            if token == "#" {
+                if pi == patternTokens.count - 1 { return true }
+                for nextKi in ki...keyTokens.count {
+                    if rabbitmqRoutingKeyMatchFrom(keyTokens: keyTokens, keyIndex: nextKi,
+                                                    patternTokens: patternTokens, patternIndex: pi + 1) {
+                        return true
+                    }
+                }
+                return false
+            } else if token == "*" {
+                if ki >= keyTokens.count { return false }
+                ki += 1
+                pi += 1
+            } else {
+                if ki >= keyTokens.count || keyTokens[ki] != token { return false }
+                ki += 1
+                pi += 1
+            }
+        }
+        return ki == keyTokens.count
     }
 
     private func natsSubjectMatch(subject: String, pattern: String) -> Bool {

@@ -103,6 +103,7 @@ struct BrokerInspectorPanel: View {
         case .nats: return .blue
         case .redis: return .red
         case .kafka: return .purple
+        case .rabbitmq: return .orange
         }
     }
     
@@ -135,6 +136,14 @@ struct BrokerInspectorPanel: View {
                     metrics: metricsProvider.kafkaMetrics,
                     lagHistory: metricsProvider.kafkaLagHistory.points,
                     urpHistory: metricsProvider.kafkaUrpHistory.points
+                )
+                
+            case .rabbitmq:
+                RabbitMQInspectorView(
+                    isExpanded: $isExpanded,
+                    metrics: metricsProvider.rabbitmqMetrics,
+                    publishHistory: metricsProvider.rabbitmqPublishHistory.points,
+                    deliverHistory: metricsProvider.rabbitmqDeliverHistory.points
                 )
             }
         case .connecting:

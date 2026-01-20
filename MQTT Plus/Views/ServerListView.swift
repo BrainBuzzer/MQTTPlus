@@ -170,13 +170,15 @@ struct ServerRowView: View {
 
         switch provider {
         case .nats:
-            return "antenna.radiowaves.left.and.right"
+            return "icon_nats"
         case .redis:
-            return "cylinder.fill"
+            return "icon_redis"
         case .kafka:
-            return "arrow.triangle.pull"
+            return "icon_kafka"
+        case .rabbitmq:
+            return "icon_rabbitmq"
         case nil:
-            return "server.rack"
+            return "icon_nats"
         }
     }
 
@@ -216,17 +218,12 @@ struct ServerRowView: View {
 
     @ViewBuilder
     private var iconView: some View {
-        if let id = server.providerId, let _ = NSImage(named: "icon_\(id)") {
-            Image("icon_\(id)")
-                .resizable()
-                .renderingMode(.template) // Allow tinting
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .foregroundColor(connectionState == .connected ? .green : .secondary)
-        } else {
-            Image(systemName: providerIcon)
-                .foregroundColor(connectionState == .connected ? .green : .secondary)
-        }
+        Image(providerIcon)
+            .resizable()
+            .renderingMode(.template)
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 16, height: 16)
+            .foregroundColor(connectionState == .connected ? .green : .secondary)
     }
 }
 

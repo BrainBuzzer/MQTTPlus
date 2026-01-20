@@ -15,6 +15,7 @@ enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
     case nats
     case redis
     case kafka
+    case rabbitmq
 
     init?(providerId: String) {
         self.init(rawValue: providerId.lowercased())
@@ -27,6 +28,8 @@ enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
             self = .redis
         } else if urlString.hasPrefix("kafka://") || urlString.hasPrefix("kafkas://") {
             self = .kafka
+        } else if urlString.hasPrefix("amqp://") || urlString.hasPrefix("amqps://") {
+            self = .rabbitmq
         } else {
             return nil
         }
@@ -37,6 +40,7 @@ enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
         case .nats: return "NATS"
         case .redis: return "Redis"
         case .kafka: return "Kafka"
+        case .rabbitmq: return "RabbitMQ"
         }
     }
 
@@ -45,6 +49,7 @@ enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
         case .nats: return ">"
         case .redis: return "*"
         case .kafka: return "*"  // Wildcard for Kafka topic matching
+        case .rabbitmq: return "#"  // AMQP wildcard for all routing keys
         }
     }
 
@@ -53,6 +58,7 @@ enum MQProviderKind: String, Sendable, Hashable, CaseIterable {
         case .nats: return 4222
         case .redis: return 6379
         case .kafka: return 9092
+        case .rabbitmq: return 5672
         }
     }
 }
@@ -381,6 +387,8 @@ class ConnectionManager: ObservableObject {
         case .redis:
             return false
         case .kafka:
+            return false
+        case .rabbitmq:
             return false
         }
     }

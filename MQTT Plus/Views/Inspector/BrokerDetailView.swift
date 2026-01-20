@@ -108,6 +108,14 @@ struct BrokerDetailView: View {
                 lagHistory: metricsProvider.kafkaLagHistory.points,
                 urpHistory: metricsProvider.kafkaUrpHistory.points
             )
+            
+        case .rabbitmq:
+            RabbitMQInspectorView(
+                isExpanded: $isInspectorExpanded,
+                metrics: metricsProvider.rabbitmqMetrics,
+                publishHistory: metricsProvider.rabbitmqPublishHistory.points,
+                deliverHistory: metricsProvider.rabbitmqDeliverHistory.points
+            )
         }
     }
     
@@ -149,6 +157,7 @@ struct BrokerDetailView: View {
         case .nats: return "Showing Sequence Numbers"
         case .redis: return "Showing Channel Metadata"
         case .kafka: return "Showing Partition IDs"
+        case .rabbitmq: return "Showing Queue Names"
         }
     }
     
@@ -230,6 +239,16 @@ private struct MessageRowPlaceholder: View {
                 .padding(.vertical, 2)
                 .background(.purple.opacity(0.1))
                 .cornerRadius(4)
+            
+        case .rabbitmq:
+            // Queue name
+            Text("q:tasks")
+                .font(.caption2.monospaced())
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.orange.opacity(0.1))
+                .cornerRadius(4)
         }
     }
     
@@ -238,6 +257,7 @@ private struct MessageRowPlaceholder: View {
         case .nats: return "orders.created.\(["us", "eu", "ap"][index % 3])"
         case .redis: return "events:\(["user", "order", "payment"][index % 3])"
         case .kafka: return "transactions-\(["prod", "staging"][index % 2])"
+        case .rabbitmq: return "tasks.\(["email", "sms", "push"][index % 3])"
         }
     }
     

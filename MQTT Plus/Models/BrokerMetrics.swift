@@ -15,6 +15,7 @@ public enum BrokerType: String, CaseIterable, Sendable, Identifiable {
     case nats
     case redis
     case kafka
+    case rabbitmq
     
     public var id: String { rawValue }
     
@@ -23,6 +24,7 @@ public enum BrokerType: String, CaseIterable, Sendable, Identifiable {
         case .nats: return "NATS"
         case .redis: return "Redis"
         case .kafka: return "Kafka"
+        case .rabbitmq: return "RabbitMQ"
         }
     }
     
@@ -31,6 +33,7 @@ public enum BrokerType: String, CaseIterable, Sendable, Identifiable {
         case .nats: return "bolt.horizontal.circle.fill"
         case .redis: return "memorychip.fill"
         case .kafka: return "arrow.trianglehead.branch"
+        case .rabbitmq: return "arrow.trianglehead.2.clockwise.rotate.90"
         }
     }
     
@@ -41,6 +44,8 @@ public enum BrokerType: String, CaseIterable, Sendable, Identifiable {
             return .redis
         } else if lowercased.contains("kafka") || lowercased.contains(":9092") {
             return .kafka
+        } else if lowercased.contains("amqp") || lowercased.hasPrefix("amqp://") || lowercased.contains(":5672") {
+            return .rabbitmq
         } else {
             return .nats
         }
@@ -238,6 +243,7 @@ public struct BrokerMetrics: Sendable {
     public let nats: NatsMetrics?
     public let redis: RedisMetrics?
     public let kafka: KafkaMetrics?
+    public let rabbitmq: RabbitMQMetrics?
     public let timestamp: Date
     
     public init(
@@ -245,12 +251,14 @@ public struct BrokerMetrics: Sendable {
         nats: NatsMetrics? = nil,
         redis: RedisMetrics? = nil,
         kafka: KafkaMetrics? = nil,
+        rabbitmq: RabbitMQMetrics? = nil,
         timestamp: Date = Date()
     ) {
         self.type = type
         self.nats = nats
         self.redis = redis
         self.kafka = kafka
+        self.rabbitmq = rabbitmq
         self.timestamp = timestamp
     }
     
@@ -260,6 +268,7 @@ public struct BrokerMetrics: Sendable {
         case .nats: return nats?.healthStatus ?? .healthy
         case .redis: return redis?.healthStatus ?? .healthy
         case .kafka: return kafka?.healthStatus ?? .healthy
+        case .rabbitmq: return rabbitmq?.healthStatus ?? .healthy
         }
     }
     
@@ -269,6 +278,7 @@ public struct BrokerMetrics: Sendable {
         case .nats: return nats?.healthSummary ?? "No data"
         case .redis: return redis?.healthSummary ?? "No data"
         case .kafka: return kafka?.healthSummary ?? "No data"
+        case .rabbitmq: return rabbitmq?.healthSummary ?? "No data"
         }
     }
     
@@ -284,6 +294,10 @@ public struct BrokerMetrics: Sendable {
     
     public static func kafka(_ metrics: KafkaMetrics) -> BrokerMetrics {
         BrokerMetrics(type: .kafka, kafka: metrics)
+    }
+    
+    public static func rabbitmq(_ metrics: RabbitMQMetrics) -> BrokerMetrics {
+        BrokerMetrics(type: .rabbitmq, rabbitmq: metrics)
     }
 }
 

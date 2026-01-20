@@ -98,8 +98,10 @@ struct SessionTabItem: View {
     
     var body: some View {
         HStack(spacing: MQSpacing.sm) {
-            Image(systemName: providerIcon)
-                .font(.system(size: 11, weight: .medium))
+            Image(providerIcon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 12, height: 12)
                 .foregroundStyle(providerColor.opacity(0.7))
             
             MQStatusDot(state: connectionManager.connectionState)
@@ -168,10 +170,11 @@ struct SessionTabItem: View {
     
     private var providerIcon: String {
         switch connectionManager.currentProvider {
-        case .nats: return "antenna.radiowaves.left.and.right"
-        case .redis: return "cylinder.fill"
-        case .kafka: return "arrow.triangle.pull"
-        case nil: return "server.rack"
+        case .nats: return "icon_nats"
+        case .redis: return "icon_redis"
+        case .kafka: return "icon_kafka"
+        case .rabbitmq: return "icon_rabbitmq"
+        case nil: return "icon_nats"
         }
     }
 }

@@ -10,7 +10,7 @@ import Foundation
 public struct RedisProvider: MessageQueueProvider {
     public static let identifier = "redis"
     public static let displayName = "Redis"
-    public static var iconName: String { "icon_kafka" }
+    public static var iconName: String { "icon_redis" }
     public static let supportsStreaming = false
     public static let defaultPort = 6379
     public static let urlScheme = "redis"
